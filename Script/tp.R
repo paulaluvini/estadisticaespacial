@@ -2,13 +2,13 @@ library(tidyverse)
 library(readxl)
 library(ggplot2)
 library(sf)
+library('Hmisc')
 
 #getwd()
 
 #Leemos los archivos a utilizar
 departamentos <- st_read("Datos/Codgeo_Pais_x_dpto_con_datos/pxdptodatosok.shp")
 smn <- read.csv(file = 'Datos/estaciones_smn.csv', sep = ";")
-View(smn)
 
 #Primero miro un poco el de departamentos que utilizamos en clase.
 summary(departamentos)
@@ -28,6 +28,11 @@ colnames(smn)
 #Cambio este nombre para que se lea mejor
 smn <- smn %>% rename(Estacion = ï..NOMBRE) 
 summary(smn$Provincia)
+describe(smn)
+
+# Vemos cómo se distribuyen las estaciones por provincia.
+# La provincia con mayores estaciones es, por lejos, Buenos Aires. La siguen Córdoba y Santa Fe.
+View(smn %>% group_by(Provincia) %>% tally(sort = TRUE))
 
 #Acá tengo que sumarle los minutos a la latitud porque vienen separados
 
@@ -46,7 +51,7 @@ smn_ba <- smn %>% filter(Provincia == "BUENOS AIRES")
 
 ggplot() + geom_sf(data = departamentos_ba) + 
   geom_point(data = smn_ba, aes(x=x, y=y),colour = "dodgerblue1", size = 1)+ 
-  theme_classic() +geom_text(data= smn_ba, aes(x,y, label = Estacion), size = 2, fontface = "bold", vjust = -0.5)+
+  theme_classic() +geom_text(data= smn_ba, aes(x,y, label = Estacion), size = 2, fontface = "bold",vjust = -0.5)+
   ggtitle("Estaciones Meteorológicas", subtitle = "Provincia de Buenos Aires") +
   theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed", 
                                         size = 0.5), panel.background = element_rect(fill = "aliceblue"))
