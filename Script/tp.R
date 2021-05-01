@@ -30,7 +30,6 @@ describe(smn)
 
 # Vemos cómo se distribuyen las estaciones por provincia.
 # La provincia con mayores estaciones es, por lejos, Buenos Aires. La siguen Córdoba y Santa Fe.
-
 View(smn %>% group_by(Provincia) %>% tally(sort = TRUE))
 
 # Acá tengo que sumarle los minutos a la latitud porque vienen separados
