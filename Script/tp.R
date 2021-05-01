@@ -46,5 +46,30 @@ smn_ba <- smn %>% filter(Provincia == "BUENOS AIRES")
 
 ggplot() + geom_sf(data = departamentos_ba) + 
   geom_point(data = smn_ba, aes(x=x, y=y),colour = "dodgerblue1", size = 1)+ 
-  theme_classic() +geom_text(label= 'Estacion')#,hjust=0, vjust=0)
+  theme_classic() +geom_text(data= smn_ba, aes(x,y, label = Estacion), size = 2, fontface = "bold", vjust = -0.5)+
+  ggtitle("Estaciones Meteorológicas", subtitle = "Provincia de Buenos Aires") +
+  theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed", 
+                                        size = 0.5), panel.background = element_rect(fill = "aliceblue"))
+
+#Los de los partidos del Conurbano + CABA no se leen muy bien así que hago un mapa sólo con ellos.
+departamentos_amba <- departamentos %>% filter(provincia == "Buenos Aires" | provincia =="Ciudad Autónoma de Buenos Aires")
+smn_amba <- smn %>% filter(Provincia == "BUENOS AIRES" | Provincia == "CAPITAL FEDERAL")
+
+bbox_new <- st_bbox(departamentos_ba)
+bbox_new
+bbox_new[1] <- -59
+bbox_new[2] <- -35
+bbox_new[3] <- -57.8
+bbox_new[4] <- -34.4
+bbox_new  
+bbox_new <- bbox_new %>%  # take the bounding box ...
+  st_as_sfc()
+
+ggplot() + geom_sf(data = departamentos_amba) + 
+  coord_sf(xlim = st_coordinates(bbox_new)[c(1,2),1],ylim = st_coordinates(bbox_new)[c(2,3),2])+ 
+  geom_point(data = smn_amba, aes(x=x, y=y),colour = "dodgerblue1", size = 2)+ theme_classic() +
+  geom_text(data= smn_amba, aes(x,y, label = Estacion), size = 3, fontface = "bold", vjust = -0.5)+
+  ggtitle("Estaciones Meteorológicas", subtitle = "Area Metropolitana")+
+  theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed",size = 0.5),
+        panel.background = element_rect(fill = "aliceblue"))
 
