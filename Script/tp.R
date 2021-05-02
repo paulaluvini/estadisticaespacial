@@ -83,50 +83,78 @@ ggplot() + geom_sf(data = departamentos_amba) +
 
 head(temperaturas)
 temperaturas <- temperaturas %>% rename(Estacion = NOMBRE) 
-dim(temperaturas)
+dim(temperaturas)[1]
 colnames(temperaturas)
+sort(unique(temperaturas$FECHA))
+
+#Me quedo solo con 2020. Para no tener problemas de estacionalidad, si me quedo con 
+#2 meses de enero dado que tengo 2020 y 2021 estaria teniendo temperaturas sesgadas.
+
+for (i in 1:dim(temperaturas)[1]){
+  if (nchar(temperaturas$FECHA[i]) == 8){
+    temperaturas$YEAR[i] = substr(temperaturas$FECHA[i],5,nchar(temperaturas$FECHA[i]))
+  }
+  if (nchar(temperaturas$FECHA[i]) == 7){
+    temperaturas$YEAR[i] = substr(temperaturas$FECHA[i],4,nchar(temperaturas$FECHA[i]))
+  }
+}
+
+head(temperaturas)
+temperaturas_2020 <- temperaturas[temperaturas$YEAR == 2020,]
+dim(temperaturas_2020)
 
 library(geoR)
 library(spdep)
 #Lo mergeo con el otro dataset
-smn_temp <- merge(x = temperaturas, y = smn, by = "Estacion", all.x = TRUE)
+smn_temp <- merge(x = temperaturas_2020, y = smn, by = "Estacion", all.x = TRUE)
+#Filtro los na
+smn_temp <- smn_temp %>% filter(!is.na(x) & !is.na(y) & !is.na(TMAX) & !is.na(TMIN))
+class(smn_temp)
 dim(smn_temp)
 head(smn_temp)
-temp_max <- smn_temp[,c(15,16,3)]
-temp_min <- smn_temp[,c(15,16,4)]
+colnames(smn_temp)
+
+#Ahora agrupo.
+temp_max_group <- smn_temp %>% 
+  arrange(Estacion, x, y, TMAX) %>% 
+  group_by(Estacion) %>%
+  mutate(TMAX.med = median(TMAX)) %>%
+  slice(1) %>%
+  ungroup %>%
+  select(x,y,TMAX.med ) 
+
+temp_max <- temp_max_group[,c(16,17,3)]
+temp_min <- temp_max_group[,c(16,17,4)]
 
 b <- temp_max %>% filter(!is.na(x) & !is.na(y)) %>% st_as_sf(coords =c("x", "y"), crs=4326)
 plot(b)
 class(b)
 
-#Vemos que tenemos más observaciones con temperaturas maximas entre 20 y 40 grados centigrados
-c <- temp_max %>% filter(!is.na(x) & !is.na(y))
-coordinates(c) <- ~x+y
-temp_max_geodata <- as.geodata(c)
+#Vemos que tenemos más observaciones con temperaturas maximas entre 20 y 30 grados centigrados
+# Hay una clara tendencia mirando la latitud, lo que hace sentido en Argentina por tener 
+# mayor variación climática de norte a sur que de este a oeste.
+temp_max_geodata <- as.geodata(temp_max_group)
 class(temp_max_geodata)
 plot(temp_max_geodata)
 
 # AUTOCORRELACION ESPACIAL
-#Para poder mirar la autocorrelación espacial necesitamos trabajar con objetos sp (Spatial Polygon) 
-b <- as_Spatial(b)
-class(b)
 
-class(c)
-pares <- dat %>% 
-  select(lng, lat)
-#Es un df y lo tengo que pasar a que sea un data point
+#PUNTOS
+pares <- temp_max_group %>% select(x, y) %>% filter(!is.na(x), !is.na(y))
 class(pares)
-c <- temp_max %>% filter(!is.na(x) & !is.na(y))
-pares <- c %>% select(x, y)
 coordinates(pares) <- ~x+y
-
-pares_grilla <- dnearneigh(pares, 0, .5)
+#Ahora voy a buscar los vecinos. Este objeto tiene para cada uno con cuantos se relaciona
+# Acá habría que analizar bien que pasa con este último parámetro del vecindario que me dice
+# que los vecinos están a una distancia menor a 10,15,20,25. Esto cambia mucho los vecindarios
+pares_grilla <- dnearneigh(pares, 0, 15)
+class(pares_grilla)
+#Voy a ver todos los puntos en el mapa y sus relaciones
 plot(pares_grilla, pares)
 
+#Hace pesos para los vecinos dividiendo 1 por la cantidad de vecinos que ese punto tiene.
+pesos_grilla <- nb2listw(pares_grilla, style = "W", zero.policy=TRUE )
+#Vemos que estan autocorrelacionados espacialmente.
+options(scipen=20)
+moran.test(temp_max_group$TMAX.med, pesos_grilla)
 
-###Acá no se si tenemos que trabajar con temperaturas agrupadas o no. Usamos raster??
-temperaturas <- temperaturas %>% 
-  group_by(Estacion) %>% 
-  summarise(TMAX = median(TMAX),
-            TMIN = median(TMIN))
-dim(temperaturas)
+# VARIOGRAMA
