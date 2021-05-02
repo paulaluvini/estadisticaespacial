@@ -18,20 +18,20 @@ summary(departamentos$provincia)
 #La Antartida es parte de T. del Fuego
 departamentos_tf <- departamentos %>% 
   filter(provincia == "Tierra del Fuego") %>% mutate(personas = personas%>% as.numeric())
-grafico2 <- ggplot() + geom_sf(data =departamentos_tf, aes(fill = personas))
+grafico2 <- ggplot() + geom_sf(data =departamentos_tf, aes(fill = personas))  + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank())
 grafico2
 
 #Ahora voy a ver la localización de las estaciones
 summary(smn)
 colnames(smn)
 #Cambio este nombre para que se lea mejor
-smn <- smn %>% rename(Estacion = ï..NOMBRE) 
+smn <- smn %>% rename(Estacion = NOMBRE) 
 summary(smn$Provincia)
 describe(smn)
 
 # Vemos cómo se distribuyen las estaciones por provincia.
 # La provincia con mayores estaciones es, por lejos, Buenos Aires. La siguen Córdoba y Santa Fe.
-View(smn %>% group_by(Provincia) %>% tally(sort = TRUE))
+#View(smn %>% group_by(Provincia) %>% tally(sort = TRUE))
 
 # Acá tengo que sumarle los minutos a la latitud porque vienen separados
 
@@ -51,9 +51,10 @@ smn_ba <- smn %>% filter(Provincia == "BUENOS AIRES")
 ggplot() + geom_sf(data = departamentos_ba) + 
   geom_point(data = smn_ba, aes(x=x, y=y),colour = "dodgerblue1", size = 1)+ 
   theme_classic() +geom_text(data= smn_ba, aes(x,y, label = Estacion), size = 2, fontface = "bold",vjust = -0.5)+
-  ggtitle("Estaciones Meteorológicas", subtitle = "Provincia de Buenos Aires") +
-  theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed", 
-                                        size = 0.5), panel.background = element_rect(fill = "aliceblue"))
+  ggtitle("Estaciones Meteorológicas", subtitle = "Provincia de Buenos Aires") + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank())
+
+ # theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed", 
+                                       # size = 0.5), panel.background = element_rect(fill = "aliceblue"))
 
 #Los de los partidos del Conurbano + CABA no se leen muy bien así que hago un mapa sólo con ellos.
 departamentos_amba <- departamentos %>% filter(provincia == "Buenos Aires" | provincia =="Ciudad Autónoma de Buenos Aires")
@@ -73,9 +74,10 @@ ggplot() + geom_sf(data = departamentos_amba) +
   coord_sf(xlim = st_coordinates(bbox_new)[c(1,2),1],ylim = st_coordinates(bbox_new)[c(2,3),2])+ 
   geom_point(data = smn_amba, aes(x=x, y=y),colour = "dodgerblue1", size = 2)+ theme_classic() +
   geom_text(data= smn_amba, aes(x,y, label = Estacion), size = 3, fontface = "bold", vjust = -0.5)+
-  ggtitle("Estaciones Meteorológicas", subtitle = "Area Metropolitana")+
-  theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed",size = 0.5),
-        panel.background = element_rect(fill = "aliceblue"))
+  ggtitle("Estaciones Meteorológicas", subtitle = "Area Metropolitana") + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank())
+grafico2
+  #theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed",size = 0.5),
+    #    panel.background = element_rect(fill = "aliceblue"))
 
 #Miro el dataset de temperaturas
 #ACA ME FALTA MIRAR ESTO BIEN. TIENE NA, FALTA ANALISIS EXPLORATORIO, BOXPLOT DE 
@@ -107,8 +109,12 @@ library(geoR)
 library(spdep)
 #Lo mergeo con el otro dataset
 smn_temp <- merge(x = temperaturas_2020, y = smn, by = "Estacion", all.x = TRUE)
+#agrego este dataset general para que no se rompa el graph de temperaturas
+smn_temp_gral <- merge(x= temperaturas, y = smn, by="Estacion", all.x=TRUE)
 #Filtro los na
 smn_temp <- smn_temp %>% filter(!is.na(x) & !is.na(y) & !is.na(TMAX) & !is.na(TMIN))
+
+smn_temp_gral <- smn_temp_gral %>% filter(!is.na(x) & !is.na(y) & !is.na(TMAX) & !is.na(TMIN))
 class(smn_temp)
 dim(smn_temp)
 head(smn_temp)
@@ -123,10 +129,25 @@ temp_max_group <- smn_temp %>%
   ungroup %>%
   select(x,y,TMAX.med ) 
 
-temp_max <- temp_max_group[,c(16,17,3)]
-temp_min <- temp_max_group[,c(16,17,4)]
+#temp_max <- temp_max_group[,c(16,17,3)]
 
-b <- temp_max %>% filter(!is.na(x) & !is.na(y)) %>% st_as_sf(coords =c("x", "y"), crs=4326)
+
+smn_temp_gral <- smn_temp_gral %>% filter(!is.na(x) & !is.na(y)) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
+#b <- temp_max_gral %>% filter(!is.na(x) & !is.na(y)) %>% st_as_sf(coords =c("x", "y"), crs=4326)
+temp_max <- smn_temp_gral[,c(16,3)]
+#temp_min <- temp_max_group[,c(16,17,4)]
+temp_min <- smn_temp_gral[,c(16,4)]
+
+#hago un analisis de la temperatura 
+ggplot() + geom_histogram(data=temp_max, aes(x= TMAX)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
+      ggtitle("Histograma de temperatura mediana") + labs(x= "temperatura máxima")
+qqnorm(temp_max$TMAX)
+
+
+b <- temp_max
+
+
+ggplot() + geom_sf(data= temp_max, aes(x= temp_max))
 plot(b)
 class(b)
 
