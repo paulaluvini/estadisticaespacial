@@ -7,6 +7,7 @@ library('Hmisc')
 # Primero leemos los archivos a utilizar
 departamentos <- st_read("Datos/Codgeo_Pais_x_dpto_con_datos/pxdptodatosok.shp")
 smn <- read.csv(file = 'Datos/estaciones_smn.csv', sep = ";")
+temperaturas <- read.csv(file = 'Datos/temperaturas.csv')
 
 #Primero miro un poco el de departamentos que utilizamos en clase.
 summary(departamentos)
@@ -76,3 +77,56 @@ ggplot() + geom_sf(data = departamentos_amba) +
   theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed",size = 0.5),
         panel.background = element_rect(fill = "aliceblue"))
 
+#Miro el dataset de temperaturas
+#ACA ME FALTA MIRAR ESTO BIEN. TIENE NA, FALTA ANALISIS EXPLORATORIO, BOXPLOT DE 
+#TEMPERATURAS, HISTOGRAMA, ETC.
+
+head(temperaturas)
+temperaturas <- temperaturas %>% rename(Estacion = NOMBRE) 
+dim(temperaturas)
+colnames(temperaturas)
+
+library(geoR)
+library(spdep)
+#Lo mergeo con el otro dataset
+smn_temp <- merge(x = temperaturas, y = smn, by = "Estacion", all.x = TRUE)
+dim(smn_temp)
+head(smn_temp)
+temp_max <- smn_temp[,c(15,16,3)]
+temp_min <- smn_temp[,c(15,16,4)]
+
+b <- temp_max %>% filter(!is.na(x) & !is.na(y)) %>% st_as_sf(coords =c("x", "y"), crs=4326)
+plot(b)
+class(b)
+
+#Vemos que tenemos más observaciones con temperaturas maximas entre 20 y 40 grados centigrados
+c <- temp_max %>% filter(!is.na(x) & !is.na(y))
+coordinates(c) <- ~x+y
+temp_max_geodata <- as.geodata(c)
+class(temp_max_geodata)
+plot(temp_max_geodata)
+
+# AUTOCORRELACION ESPACIAL
+#Para poder mirar la autocorrelación espacial necesitamos trabajar con objetos sp (Spatial Polygon) 
+b <- as_Spatial(b)
+class(b)
+
+class(c)
+pares <- dat %>% 
+  select(lng, lat)
+#Es un df y lo tengo que pasar a que sea un data point
+class(pares)
+c <- temp_max %>% filter(!is.na(x) & !is.na(y))
+pares <- c %>% select(x, y)
+coordinates(pares) <- ~x+y
+
+pares_grilla <- dnearneigh(pares, 0, .5)
+plot(pares_grilla, pares)
+
+
+###Acá no se si tenemos que trabajar con temperaturas agrupadas o no. Usamos raster??
+temperaturas <- temperaturas %>% 
+  group_by(Estacion) %>% 
+  summarise(TMAX = median(TMAX),
+            TMIN = median(TMIN))
+dim(temperaturas)
