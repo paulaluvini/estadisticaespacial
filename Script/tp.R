@@ -3,6 +3,8 @@ library(readxl)
 library(ggplot2)
 library(sf)
 library('Hmisc')
+library(spdep)
+library(sp)
 
 # Primero leemos los archivos a utilizar
 departamentos <- st_read("Datos/Codgeo_Pais_x_dpto_con_datos/pxdptodatosok.shp")
@@ -143,11 +145,10 @@ ggplot() + geom_histogram(data=temp_max, aes(x= TMAX)) + theme(panel.grid.major 
       ggtitle("Histograma de temperatura mediana") + labs(x= "temperatura máxima")
 qqnorm(temp_max$TMAX)
 
+ggplot() + geom_sf(data= temp_max, aes(x=geometry, fill=TMAX))
 
 b <- temp_max
 
-
-ggplot() + geom_sf(data= temp_max, aes(x= temp_max))
 plot(b)
 class(b)
 
@@ -178,4 +179,17 @@ pesos_grilla <- nb2listw(pares_grilla, style = "W", zero.policy=TRUE )
 options(scipen=20)
 moran.test(temp_max_group$TMAX.med, pesos_grilla)
 
-# VARIOGRAMA
+# VARIOGRAMA 
+library(gstat)
+d_var <- temp_max_group %>% select(TMAX.med, x,y)
+coordinates(d_var) <-~y+x
+d_var <- d_var[1:50,]
+variograma <-variogram(TMAX.med ~1, d_var)
+plot(variograma, main = "Variograma empírico de TMAX")
+#vemos toda la nube
+variograma_nube <- variogram(TMAX.med~1, d_var, cloud =TRUE)
+plot(variograma_nube, main= "Variograma nube de TMAX")
+
+dat_fit <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=40, model ="Lin", nugget =0,range=20))
+plot(variograma, dat_fit)
+
