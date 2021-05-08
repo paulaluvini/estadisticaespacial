@@ -27,7 +27,7 @@ grafico2
 summary(smn)
 colnames(smn)
 #Cambio este nombre para que se lea mejor
-smn <- smn %>% rename(Estacion = NOMBRE) 
+smn <- smn %>% rename(Estacion =  ï..NOMBRE) 
 summary(smn$Provincia)
 describe(smn)
 
@@ -165,13 +165,20 @@ plot(temp_max_geodata)
 pares <- temp_max_group %>% select(x, y) %>% filter(!is.na(x), !is.na(y))
 class(pares)
 coordinates(pares) <- ~x+y
+
 #Ahora voy a buscar los vecinos. Este objeto tiene para cada uno con cuantos se relaciona
 # Acá habría que analizar bien que pasa con este último parámetro del vecindario que me dice
 # que los vecinos están a una distancia menor a 10,15,20,25. Esto cambia mucho los vecindarios
-pares_grilla <- dnearneigh(pares, 0, 15)
+#Miro entonces qué distancia maxima tiene que haber para que estén todos conectados.
+k1 <- knn2nb(knearneigh(pares))
+all.linked <- max(unlist(nbdists(k1, pares)))
+print(all.linked)
+
+pares_grilla <- dnearneigh(pares, 0, all.linked)
 class(pares_grilla)
 #Voy a ver todos los puntos en el mapa y sus relaciones
 plot(pares_grilla, pares)
+
 
 #Hace pesos para los vecinos dividiendo 1 por la cantidad de vecinos que ese punto tiene.
 pesos_grilla <- nb2listw(pares_grilla, style = "W", zero.policy=TRUE )
@@ -186,6 +193,24 @@ coordinates(d_var) <-~y+x
 d_var <- d_var[1:50,]
 variograma <-variogram(TMAX.med ~1, d_var)
 plot(variograma, main = "Variograma empírico de TMAX")
+variograma$dir.ver
+
+#Uno en ggplot ?)
+library(wesanderson)
+loadfonts(device = "win")
+windowsFonts()
+ggplot(variograma, aes(x = dist, y = gamma)) +
+  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 55) +
+  labs(title = expression("Variograma empírico"), 
+       x = "distancia", y = "semivarianza")+  
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        axis.title.x =   element_blank(),
+                        axis.title.y = element_blank(),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 14, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
+                        axis.title = element_text(size = 11, face = "bold"))
+
 #vemos toda la nube
 variograma_nube <- variogram(TMAX.med~1, d_var, cloud =TRUE)
 plot(variograma_nube, main= "Variograma nube de TMAX")
@@ -193,3 +218,75 @@ plot(variograma_nube, main= "Variograma nube de TMAX")
 dat_fit <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=40, model ="Lin", nugget =0,range=20))
 plot(variograma, dat_fit)
 
+print("La meseta o sill es la suma de :")
+dat_fit[1,"psill"]
+dat_fit[2,"psill"]
+dat_fit[1,"psill"]+dat_fit[2,"psill"]
+
+dat_fit_s <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=40, model ="Sph", nugget =0,range=20))
+plot(variograma, dat_fit_s)
+#A diferencia del exponencial, acáa alcanzo la meseta
+# Comparamos los modelos: 
+# Calculamos la Suma de cuadrados del error  para cada uno de los modelos ajustados
+#El esferico tiene menos error, nos quedamos con esto
+attr(dat_fit, 'SSErr')
+attr(dat_fit_s, 'SSErr')
+
+# Son isotrópicos? Voy a averiguarlo
+v1 <- variogram(TMAX.med ~1, d_var,cutoff=50, width=5,  map = T)
+# Que sea todo del mismo color me dice que el proceso es isotrópico porque solo mira la magnitud,
+# no si es algo de norte a sur, etc Porque el mapa me dice que me muevo de norte a sur y no hay cambios debido a eso.
+plot(v1)
+
+v.dir <-variogram(TMAX.med ~1, d_var,alpha = (0:3) * 45)
+help(variogram)
+v.anis <- vgm(psill = 40, "Lin", 20, anis = c(45, 0.3),nugget=0)
+plot(v.dir, v.anis)
+
+v.dir$dir.hor
+
+#Que significa que la direccion es siempre E-O? Que es isotropico o no?
+v.dir$direction <- factor(v.dir$dir.hor, levels = c(0, 45, 90, 135),
+                          labels = c("E-O", "NE-SO", "N-S", "NO-SE"))
+v.dir
+ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) + 
+  geom_point(size = 1.8) + 
+  labs(title = expression("Variograma direccional"), 
+       x = "distancia", y = "semivariance", colour = "dirección") + geom_line()+
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 14, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
+                        axis.title = element_text(size = 11, face = "bold"))
+
+
+
+#################################################################################
+#CODIGO SUELTOS DE GEOSTATSGUY
+
+par(mfrow=c(2,2))                              
+plot(variogram(TMAX.med~1, d_var, cutoff=50, width=5, map=TRUE),main = "Semivariogram Map",max=1.0)
+plot(variogram(TMAX.med~1, d_var, cutoff=50, width=5, map=TRUE),main = "Number of Points",np=TRUE)
+
+var_035 = variogram(TMAX.med~1, d_var,cutoff = 50,width =5,alpha = 45.0,tol.hor=22.5)         # Calculate default isotropic variogram of N[Porosity]
+var_125 = variogram(TMAX.med~1, d_var,cutoff =50,width =5,alpha = 125.0,tol.hor=22.5) 
+
+plot(var_035,main="Porosity Anisotropic 035 Variogram")
+plot(var_125,main="Porosity Anisotropic 125 Variogram")
+
+# Anisotropy is parameterized as c(azimuth,dip,plunge,hratio,vratio) in #3D and c(azimuth,hratio) in 2D.
+por.vm.ani <- vgm(psill = 40, "Lin", 20, anis = c(0.35, 1),nugget=0)
+por.vm.ani                                     # check the variogram model parameters 
+dat_fit
+
+plot(var_035,por.vm.ani,main="Porosity Anisotropic 035 Variogram") # use the built in gstat variogram plot
+plot(var_125,por.vm.ani,main="Porosity Anisotropic 125 Variogram") # use the built in gstat variogram plot
+
+# Use auto-fitting to try to improve the variogram model, then check model and plot
+por.vm.ani.auto <- fit.variogram(variograma,por.vm.ani,fit.sills = FALSE)
+por.vm.ani.auto                                # check the autofit parameters and compare to our fit
+plot(var_035,por.vm.ani.auto,main="Porosity Anisotropic 035 Variogram")
+plot(var_125,por.vm.ani.auto,main="Porosity Anisotropic 125 Variogram")
+
+
+#¿Cómo elegimos el tamaño de los bins Bm? ¿Cuántos bins?
