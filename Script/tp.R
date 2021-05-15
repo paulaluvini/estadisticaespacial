@@ -12,6 +12,7 @@ smn <- read.csv(file = 'Datos/estaciones_smn.csv', sep = ";")
 temperaturas <- read.csv(file = 'Datos/temperaturas.csv')
 datoshorarios <- read.csv(file = 'Datos/datoshorarios.csv')
 humedad_historico <- read.csv(file = 'Datos/humedad_historico.csv')
+temperatura_historico <- read.csv(file = 'Datos/temperatura_historico.csv')
 
 #Primero miro un poco el de departamentos que utilizamos en clase.
 summary(departamentos)
@@ -83,8 +84,11 @@ grafico2
   #theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed",size = 0.5),
     #    panel.background = element_rect(fill = "aliceblue"))
 
+########################################################################################
+###DATOS DIARIOS
+
 # TEMPERATURAS
-#Miro el dataset de temperaturas datos diarios
+# Miro el dataset de temperaturas datos diarios
 
 head(temperaturas)
 temperaturas <- temperaturas %>% rename(Estacion = NOMBRE) 
@@ -151,8 +155,6 @@ ggplot() + geom_histogram(data=temp_max, aes(x= TMAX)) + theme(panel.grid.major 
       ggtitle("Histograma de temperatura mediana") + labs(x= "temperatura máxima")
 qqnorm(temp_max$TMAX)
 plot(temp_max,pch = 15 ,cex = 1)
-ggplot() + geom_sf(data= temp_max, aes(x = geometry, fill=TMAX))
-
 
 #hago un analisis de la temperatura minima
 ggplot() + geom_histogram(data=temp_min, aes(x= TMIN)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
@@ -194,115 +196,39 @@ pesos_grilla <- nb2listw(pares_grilla, style = "W", zero.policy=TRUE )
 options(scipen=20)
 moran.test(temp_max_group$TMAX.med, pesos_grilla)
 
-# VARIOGRAMA 
 
-library(gstat)
-d_var <- temp_max_group %>% select(TMAX.med, x,y)
-coordinates(d_var) <-~y+x
-d_var <- d_var[1:50,]
-variograma <-variogram(TMAX.med ~1, d_var)
-plot(variograma, main = "Variograma empírico de TMAX")
-variograma$dir.ver
+#############################################################################
+#################################HISTORICO###################################
 
-library(wesanderson)
-loadfonts(device = "win")
-windowsFonts()
-ggplot(variograma, aes(x = dist, y = gamma)) +
-  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 55) +
-  labs(title = expression("Variograma empírico"), 
-       x = "distancia", y = "semivarianza")+  
-  theme_classic()+theme(text = element_text(family = "Arial"),
-                        axis.title.x =   element_blank(),
-                        axis.title.y = element_blank(),
-                        panel.grid.major = element_blank(),
-                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 14, family = "Arial", face = 'bold'), 
-                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
-                        axis.title = element_text(size = 11, face = "bold"))
-
-#vemos toda la nube
-variograma_nube <- variogram(TMAX.med~1, d_var, cloud =TRUE)
-plot(variograma_nube, main= "Variograma nube de TMAX")
-
-dat_fit <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=40, model ="Lin", nugget =0,range=20))
-plot(variograma, dat_fit)
-
-print("La meseta o sill es la suma de :")
-dat_fit[1,"psill"]
-dat_fit[2,"psill"]
-dat_fit[1,"psill"]+dat_fit[2,"psill"]
-
-dat_fit_s <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=40, model ="Sph", nugget =0,range=20))
-plot(variograma, dat_fit_s)
-
-# Comparamos los modelos: 
-# Calculamos la Suma de cuadrados del error  para cada uno de los modelos ajustados
-#El lineal tiene menos error, nos quedamos con esto
-attr(dat_fit, 'SSErr')
-attr(dat_fit_s, 'SSErr')
-
-### Análisis de isotropía
-
-v1 <- variogram(TMAX.med ~1, d_var,cutoff=50, width=5,  map = T)
-# Que sea todo del mismo color me dice que el proceso es isotrópico porque solo mira la magnitud,
-# no si es algo de norte a sur, etc Porque el mapa me dice que me muevo de norte a sur y no hay cambios debido a eso.
-plot(v1)
-
-v.dir <-variogram(TMAX.med ~1, d_var,alpha = (0:3) * 45)
-v.anis <- vgm(psill = 40, "Lin", 20, anis = c(45, 0.3),nugget=0)
-plot(v.dir, v.anis)
-
-v.dir$direction <- factor(v.dir$dir.hor, levels = c(0, 45, 90, 135),
-                          labels = c("E-O", "NE-SO", "N-S", "NO-SE"))
-
-ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) + 
-  geom_point(size = 1.8) + 
-  labs(title = expression("Variograma direccional"), 
-       x = "distancia", y = "semivariance", colour = "dirección") + geom_line()+
-  theme_classic()+theme(text = element_text(family = "Arial"),
-                        panel.grid.major = element_blank(),
-                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 14, family = "Arial", face = 'bold'), 
-                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
-                        axis.title = element_text(size = 11, face = "bold"))
-
-########################################################################################3
 #HUMEDAD
 
-humedad <- datoshorarios %>% rename(Estacion = NOMBRE) 
-head(humedad)
-
-smn_humedad <- merge(x = humedad, y = smn, by = "Estacion", all.x = TRUE)
-colnames(smn_humedad)
-smn_humedad <- smn_humedad %>% filter(!is.na(x) & !is.na(y) & !is.na(HUM))
-
-smn_humedad_group <- smn_humedad %>% 
-  arrange(Estacion, x, y, HUM) %>% 
-  group_by(Estacion) %>%
-  mutate(HUM.med = median(HUM)) %>%
-  slice(1) %>%
-  ungroup %>%
-  select(x,y,HUM.med)
+humedad_historico <- humedad_historico %>% gather(Mes, HUM, Enero:Diciembre)
+smn_humedad_h <- merge(x = humedad_historico, y = smn, by = "Estacion", all.x = TRUE)
+smn_humedad_h <- smn_humedad_h %>% filter(!is.na(x) & !is.na(y) & !is.na(HUM))
 
 #View(smn_humedad_group)
-#hago un analisis de la temperatura maxima
-ggplot() + geom_histogram(data=smn_humedad, aes(x= HUM)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
-  ggtitle("Histograma de humedad para el 07-05-2021") + labs(x= "Humedad")
+#hago un analisis de la humedad historica
+ggplot() + geom_histogram(data=smn_humedad_h, aes(x= HUM)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
+  ggtitle("Histograma de humedad historico") + labs(x= "Humedad")
 #Los datos no son normales, estan bastante sesgados a la cola derecha
-qqnorm(smn_humedad$HUM)
+qqnorm(smn_humedad_h$HUM)
 
-colnames(smn_humedad_group)
-hum_geodata <- as.geodata(smn_humedad_group)
+colnames(smn_humedad_h)
+smn_humedad_h <- smn_humedad_h[,c(14,15,3)]
+hum_geodata <- as.geodata(smn_humedad_h)
 class(hum_geodata)
 #Aca vemos que en la humedad no hay diferencias tan marcadas en regiones de país como en el 
 #caso de temperaturas.
 plot(hum_geodata)
-hum_sf <- smn_humedad%>% select(x,y,HUM) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
+hum_sf_h <- (smn_humedad_h)%>% select(x,y,HUM) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
 options(sf_max.plot=1)
-plot(hum_sf, breaks = c(0,25,50,75,100),pch =15 ,cex = 1)
+plot(hum_sf_h, breaks = c(0,25,50,75,100),pch =15 ,cex = 1)
 
 # AUTOCORRELACION ESPACIAL
 
 #PUNTOS
-pares <- smn_humedad_group %>% select(x, y) %>% filter(!is.na(x), !is.na(y))
+
+pares <- smn_humedad_h %>% select(x, y) %>% filter(!is.na(x), !is.na(y))
 class(pares)
 coordinates(pares) <- ~x+y
 
@@ -322,13 +248,188 @@ plot(pares_grilla, pares)
 #Hace pesos para los vecinos dividiendo 1 por la cantidad de vecinos que ese punto tiene.
 pesos_grilla <- nb2listw(pares_grilla, style = "W", zero.policy=TRUE )
 
+#Vemos que sí estan autocorrelacionados espacialmente.
+options(scipen=20)
+moran.test(smn_humedad_h$HUM, pesos_grilla)
+
+# VARIOGRAMA
+
+smn_hum_h_group <- smn_humedad_h %>% 
+  arrange(x, y, HUM) %>% 
+  group_by(x,y) %>%
+  mutate(HUM.med = median(HUM)) %>%
+  slice(1) %>%
+  ungroup %>%
+  select(x,y,HUM.med) 
+
+library(gstat)
+h_var <- smn_hum_h_group %>% select(HUM.med, x,y)
+coordinates(h_var) <-~y+x
+variograma <-variogram(HUM.med ~1, h_var)
+
+library(wesanderson)
+loadfonts(device = "win")
+windowsFonts()
+ggplot(variograma, aes(x = dist, y = gamma)) +
+  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 160) +
+  labs(title = expression("Variograma empírico de Humedad"), 
+       x = "distancia", y = "semivarianza")+  
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        axis.title.x =   element_blank(),
+                        axis.title.y = element_blank(),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 14, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
+                        axis.title = element_text(size = 11, face = "bold"))
+
+#vemos toda la nube
+variograma_nube <- variogram(HUM.med~1, h_var, cloud =TRUE)
+plot(variograma_nube, main= "Variograma nube de HUMEDAD")
+
+dat_fit <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=200,model ="Lin", nugget =0,range=20))
+plot(variograma, dat_fit)
+
+### Análisis de isotropía
+
+v1 <- variogram(HUM.med ~1, h_var,cutoff=50, width=5,  map = T)
+# Que sea todo del mismo color me dice que el proceso es isotrópico porque solo mira la magnitud,
+# no si es algo de norte a sur, etc Porque el mapa me dice que me muevo de norte a sur y no hay cambios debido a eso.
+plot(v1)
+
+v.dir <-variogram(HUM.med ~1, h_var,alpha = (0:3) * 45)
+v.anis <- vgm(psill = 200, "Lin", 20, anis = c(45, 0.3),nugget=0)
+plot(v.dir, v.anis)
+
+v.dir$direction <- factor(v.dir$dir.hor, levels = c(0, 45, 90, 135),
+                          labels = c("E-O", "NE-SO", "N-S", "NO-SE"))
+
+ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) + 
+  geom_point(size = 1.8) + 
+  labs(title = expression("Variograma direccional"), 
+       x = "distancia", y = "semivariance", colour = "dirección") + geom_line()+
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 14, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
+                        axis.title = element_text(size = 11, face = "bold"))
+
+##############
+#TEMPERATURA##
+head(temperatura_historico)
+temperatura_historico <- temperatura_historico %>% gather(Mes, TEMP, Enero:Diciembre)
+
+smn_temp_h <- merge(x = temperatura_historico, y = smn, by = "Estacion", all.x = TRUE)
+colnames(smn_temp_h)
+smn_temp_h <- smn_temp_h %>% filter(!is.na(x) & !is.na(y) & !is.na(TEMP))
+
+#View(smn_humedad_group)
+#hago un analisis de la humedad historica
+ggplot() + geom_histogram(data=smn_temp_h, aes(x= TEMP)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
+  ggtitle("Histograma de temperatura historico") + labs(x= "temperatura")
+#Los datos no son normales, estan bastante sesgados a la cola derecha
+qqnorm(smn_temp_h$TEMP)
+
+colnames(smn_temp_h)
+smn_temp_h <- smn_temp_h[,c(14,15,3)]
+temp_geodata <- as.geodata(smn_temp_h)
+class(temp_geodata)
+#Aca vemos que en la humedad no hay diferencias tan marcadas en regiones de país como en el 
+#caso de temperaturas.
+plot(temp_geodata)
+temp_sf_h <- (smn_temp_h)%>% select(x,y,TEMP) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
+options(sf_max.plot=1)
+plot(temp_sf_h, pch =15 ,cex = 1)
+
+# AUTOCORRELACION ESPACIAL
+
+#PUNTOS
+
+smn_temp_h_group <- smn_temp_h %>% 
+  arrange(x, y, TEMP) %>% 
+  group_by(x,y) %>%
+  mutate(TEMP.med = median(TEMP)) %>%
+  slice(1) %>%
+  ungroup %>%
+  select(x,y,TEMP.med) 
+
+pares <- smn_temp_h_group %>% select(x, y) %>% filter(!is.na(x), !is.na(y))
+class(pares)
+coordinates(pares) <- ~x+y
+
+#Ahora voy a buscar los vecinos. Este objeto tiene para cada uno con cuantos se relaciona
+# Acá habría que analizar bien que pasa con este último parámetro del vecindario que me dice
+# que los vecinos están a una distancia menor a 10,15,20,25. Esto cambia mucho los vecindarios
+#Miro entonces qué distancia maxima tiene que haber para que estén todos conectados.
+k1 <- knn2nb(knearneigh(pares))
+all.linked <- max(unlist(nbdists(k1, pares)))
+print(all.linked)
+
+pares_grilla <- dnearneigh(pares, 0, 12)
+class(pares_grilla)
+#Voy a ver todos los puntos en el mapa y sus relaciones
+plot(pares_grilla, pares)
+
+#Hace pesos para los vecinos dividiendo 1 por la cantidad de vecinos que ese punto tiene.
+pesos_grilla <- nb2listw(pares_grilla, style = "W", zero.policy=TRUE )
+
 #Vemos que no estan autocorrelacionados espacialmente.
 options(scipen=20)
-moran.test(smn_humedad_group$HUM.med, pesos_grilla)
+moran.test(smn_temp_h_group$TEMP.med, pesos_grilla)
 
+# VARIOGRAMA 
 
-#HUMEDAD HISTORICO
+d_var <- smn_temp_h_group %>% select(TEMP.med, x,y)
+coordinates(d_var) <-~y+x
+variograma <-variogram(TEMP.med ~1, d_var)
+plot(variograma, main = "Variograma empírico de TEMP")
+variograma$dir.ver
 
-head(humedad_historico[,-1])
-View(t(humedad_historico[,-1]))
+loadfonts(device = "win")
+windowsFonts()
+ggplot(variograma, aes(x = dist, y = gamma)) +
+  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 20) +
+  labs(title = expression("Variograma empírico"), 
+       x = "distancia", y = "semivarianza")+  
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        axis.title.x =   element_blank(),
+                        axis.title.y = element_blank(),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 14, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
+                        axis.title = element_text(size = 11, face = "bold"))
 
+#vemos toda la nube
+variograma_nube <- variogram(TMAX.med~1, d_var, cloud =TRUE)
+plot(variograma_nube, main= "Variograma nube de TMAX")
+
+dat_fit <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=20, model ="Lin", nugget =0,range=20))
+plot(variograma, dat_fit)
+
+print("La meseta o sill es la suma de :")
+dat_fit[1,"psill"]
+dat_fit[2,"psill"]
+dat_fit[1,"psill"]+dat_fit[2,"psill"]
+
+### Análisis de isotropía
+
+v1 <- variogram(TEMP.med ~1, d_var,cutoff=50, width=5,  map = T)
+# Que sea todo del mismo color me dice que el proceso es isotrópico porque solo mira la magnitud,
+# no si es algo de norte a sur, etc Porque el mapa me dice que me muevo de norte a sur y no hay cambios debido a eso.
+plot(v1)
+
+v.dir <-variogram(TEMP.med ~1, d_var,alpha = (0:3) * 45)
+v.anis <- vgm(psill = 20, "Lin", 20, anis = c(45, 0.3),nugget=0)
+plot(v.dir, v.anis)
+
+v.dir$direction <- factor(v.dir$dir.hor, levels = c(0, 45, 90, 135),
+                          labels = c("E-O", "NE-SO", "N-S", "NO-SE"))
+
+ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) + 
+  geom_point(size = 1.8) + 
+  labs(title = expression("Variograma direccional"), 
+       x = "distancia", y = "semivariance", colour = "dirección") + geom_line()+
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 14, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
+                        axis.title = element_text(size = 11, face = "bold"))
