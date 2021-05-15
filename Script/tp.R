@@ -10,6 +10,8 @@ library(sp)
 departamentos <- st_read("Datos/Codgeo_Pais_x_dpto_con_datos/pxdptodatosok.shp")
 smn <- read.csv(file = 'Datos/estaciones_smn.csv', sep = ";")
 temperaturas <- read.csv(file = 'Datos/temperaturas.csv')
+datoshorarios <- read.csv(file = 'Datos/datoshorarios.csv')
+humedad_historico <- read.csv(file = 'Datos/humedad_historico.csv')
 
 #Primero miro un poco el de departamentos que utilizamos en clase.
 summary(departamentos)
@@ -81,9 +83,8 @@ grafico2
   #theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed",size = 0.5),
     #    panel.background = element_rect(fill = "aliceblue"))
 
+# TEMPERATURAS
 #Miro el dataset de temperaturas
-#ACA ME FALTA MIRAR ESTO BIEN. TIENE NA, FALTA ANALISIS EXPLORATORIO, BOXPLOT DE 
-#TEMPERATURAS, HISTOGRAMA, ETC.
 
 head(temperaturas)
 temperaturas <- temperaturas %>% rename(Estacion = NOMBRE) 
@@ -131,26 +132,33 @@ temp_max_group <- smn_temp %>%
   ungroup %>%
   select(x,y,TMAX.med ) 
 
-#temp_max <- temp_max_group[,c(16,17,3)]
-
+temp_min_group <- smn_temp %>% 
+  arrange(Estacion, x, y, TMIN) %>% 
+  group_by(Estacion) %>%
+  mutate(TMIN = median(TMIN)) %>%
+  slice(1) %>%
+  ungroup %>%
+  select(x,y,TMIN ) 
 
 smn_temp_gral <- smn_temp_gral %>% filter(!is.na(x) & !is.na(y)) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
-#b <- temp_max_gral %>% filter(!is.na(x) & !is.na(y)) %>% st_as_sf(coords =c("x", "y"), crs=4326)
+class(smn_temp_gral)
 temp_max <- smn_temp_gral[,c(16,3)]
 #temp_min <- temp_max_group[,c(16,17,4)]
 temp_min <- smn_temp_gral[,c(16,4)]
 
-#hago un analisis de la temperatura 
+#hago un analisis de la temperatura maxima
 ggplot() + geom_histogram(data=temp_max, aes(x= TMAX)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
       ggtitle("Histograma de temperatura mediana") + labs(x= "temperatura máxima")
 qqnorm(temp_max$TMAX)
+plot(temp_max,pch = 15 ,cex = 1)
+ggplot() + geom_sf(data= temp_max, aes(x = geometry, fill=TMAX))
 
-ggplot() + geom_sf(data= temp_max, aes(x=geometry, fill=TMAX))
 
-b <- temp_max
+#hago un analisis de la temperatura minima
+ggplot() + geom_histogram(data=temp_min, aes(x= TMIN)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
+  ggtitle("Histograma de temperatura mediana") + labs(x= "temperatura máxima")
+qqnorm(temp_min$TMIN)
 
-plot(b)
-class(b)
 
 #Vemos que tenemos más observaciones con temperaturas maximas entre 20 y 30 grados centigrados
 # Hay una clara tendencia mirando la latitud, lo que hace sentido en Argentina por tener 
@@ -187,6 +195,7 @@ options(scipen=20)
 moran.test(temp_max_group$TMAX.med, pesos_grilla)
 
 # VARIOGRAMA 
+
 library(gstat)
 d_var <- temp_max_group %>% select(TMAX.med, x,y)
 coordinates(d_var) <-~y+x
@@ -195,7 +204,6 @@ variograma <-variogram(TMAX.med ~1, d_var)
 plot(variograma, main = "Variograma empírico de TMAX")
 variograma$dir.ver
 
-#Uno en ggplot ?)
 library(wesanderson)
 loadfonts(device = "win")
 windowsFonts()
@@ -232,7 +240,8 @@ plot(variograma, dat_fit_s)
 attr(dat_fit, 'SSErr')
 attr(dat_fit_s, 'SSErr')
 
-# Son isotrópicos? Voy a averiguarlo
+### Análisis de isotropía
+
 v1 <- variogram(TMAX.med ~1, d_var,cutoff=50, width=5,  map = T)
 # Que sea todo del mismo color me dice que el proceso es isotrópico porque solo mira la magnitud,
 # no si es algo de norte a sur, etc Porque el mapa me dice que me muevo de norte a sur y no hay cambios debido a eso.
@@ -243,12 +252,9 @@ help(variogram)
 v.anis <- vgm(psill = 40, "Lin", 20, anis = c(45, 0.3),nugget=0)
 plot(v.dir, v.anis)
 
-v.dir$dir.hor
-
-#Que significa que la direccion es siempre E-O? Que es isotropico o no?
 v.dir$direction <- factor(v.dir$dir.hor, levels = c(0, 45, 90, 135),
                           labels = c("E-O", "NE-SO", "N-S", "NO-SE"))
-v.dir
+
 ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) + 
   geom_point(size = 1.8) + 
   labs(title = expression("Variograma direccional"), 
@@ -259,34 +265,70 @@ ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) +
                         axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
                         axis.title = element_text(size = 11, face = "bold"))
 
+########################################################################################3
+#HUMEDAD
+
+humedad <- datoshorarios %>% rename(Estacion = NOMBRE) 
+head(humedad)
+
+smn_humedad <- merge(x = humedad, y = smn, by = "Estacion", all.x = TRUE)
+colnames(smn_humedad)
+smn_humedad <- smn_humedad %>% filter(!is.na(x) & !is.na(y) & !is.na(HUM))
+
+smn_humedad_group <- smn_humedad %>% 
+  arrange(Estacion, x, y, HUM) %>% 
+  group_by(Estacion) %>%
+  mutate(HUM.med = median(HUM)) %>%
+  slice(1) %>%
+  ungroup %>%
+  select(x,y,HUM.med)
+
+View(smn_humedad_group)
+#hago un analisis de la temperatura maxima
+ggplot() + geom_histogram(data=smn_humedad, aes(x= HUM)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
+  ggtitle("Histograma de humedad para el 07-05-2021") + labs(x= "Humedad")
+qqnorm(smn_humedad$HUM)
+
+colnames(smn_humedad_group)
+hum_geodata <- as.geodata(smn_humedad_group)
+class(hum_geodata)
+#Aca vemos que en la humedad no hay diferencias tan marcadas en regiones de país como en el 
+#caso de temperaturas.
+plot(hum_geodata)
+hum_sf <- smn_humedad%>% select(x,y,HUM) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
+options(sf_max.plot=1)
+plot(hum_sf, breaks = c(0,25,50,75,100),pch =15 ,cex = 1)
+
+# AUTOCORRELACION ESPACIAL
+
+#PUNTOS
+pares <- smn_humedad_group %>% select(x, y) %>% filter(!is.na(x), !is.na(y))
+class(pares)
+coordinates(pares) <- ~x+y
+
+#Ahora voy a buscar los vecinos. Este objeto tiene para cada uno con cuantos se relaciona
+# Acá habría que analizar bien que pasa con este último parámetro del vecindario que me dice
+# que los vecinos están a una distancia menor a 10,15,20,25. Esto cambia mucho los vecindarios
+#Miro entonces qué distancia maxima tiene que haber para que estén todos conectados.
+k1 <- knn2nb(knearneigh(pares))
+all.linked <- max(unlist(nbdists(k1, pares)))
+print(all.linked)
+
+pares_grilla <- dnearneigh(pares, 0, all.linked)
+class(pares_grilla)
+#Voy a ver todos los puntos en el mapa y sus relaciones
+plot(pares_grilla, pares)
+
+#Hace pesos para los vecinos dividiendo 1 por la cantidad de vecinos que ese punto tiene.
+pesos_grilla <- nb2listw(pares_grilla, style = "W", zero.policy=TRUE )
+
+#Vemos que no estan autocorrelacionados espacialmente.
+options(scipen=20)
+moran.test(smn_humedad_group$HUM.med, pesos_grilla)
 
 
-#################################################################################
-#CODIGO SUELTOS DE GEOSTATSGUY
+#HUMEDAD HISTORICO
 
-par(mfrow=c(2,2))                              
-plot(variogram(TMAX.med~1, d_var, cutoff=50, width=5, map=TRUE),main = "Semivariogram Map",max=1.0)
-plot(variogram(TMAX.med~1, d_var, cutoff=50, width=5, map=TRUE),main = "Number of Points",np=TRUE)
+head(humedad_historico)
+View(t(humedad_historico))
 
-var_035 = variogram(TMAX.med~1, d_var,cutoff = 50,width =5,alpha = 45.0,tol.hor=22.5)         # Calculate default isotropic variogram of N[Porosity]
-var_125 = variogram(TMAX.med~1, d_var,cutoff =50,width =5,alpha = 125.0,tol.hor=22.5) 
-
-plot(var_035,main="Porosity Anisotropic 035 Variogram")
-plot(var_125,main="Porosity Anisotropic 125 Variogram")
-
-# Anisotropy is parameterized as c(azimuth,dip,plunge,hratio,vratio) in #3D and c(azimuth,hratio) in 2D.
-por.vm.ani <- vgm(psill = 40, "Lin", 20, anis = c(0.35, 1),nugget=0)
-por.vm.ani                                     # check the variogram model parameters 
-dat_fit
-
-plot(var_035,por.vm.ani,main="Porosity Anisotropic 035 Variogram") # use the built in gstat variogram plot
-plot(var_125,por.vm.ani,main="Porosity Anisotropic 125 Variogram") # use the built in gstat variogram plot
-
-# Use auto-fitting to try to improve the variogram model, then check model and plot
-por.vm.ani.auto <- fit.variogram(variograma,por.vm.ani,fit.sills = FALSE)
-por.vm.ani.auto                                # check the autofit parameters and compare to our fit
-plot(var_035,por.vm.ani.auto,main="Porosity Anisotropic 035 Variogram")
-plot(var_125,por.vm.ani.auto,main="Porosity Anisotropic 125 Variogram")
-
-
-#¿Cómo elegimos el tamaño de los bins Bm? ¿Cuántos bins?
