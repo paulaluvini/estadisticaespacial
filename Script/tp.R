@@ -84,7 +84,7 @@ grafico2
     #    panel.background = element_rect(fill = "aliceblue"))
 
 # TEMPERATURAS
-#Miro el dataset de temperaturas
+#Miro el dataset de temperaturas datos diarios
 
 head(temperaturas)
 temperaturas <- temperaturas %>% rename(Estacion = NOMBRE) 
@@ -233,10 +233,10 @@ dat_fit[1,"psill"]+dat_fit[2,"psill"]
 
 dat_fit_s <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=40, model ="Sph", nugget =0,range=20))
 plot(variograma, dat_fit_s)
-#A diferencia del exponencial, acáa alcanzo la meseta
+
 # Comparamos los modelos: 
 # Calculamos la Suma de cuadrados del error  para cada uno de los modelos ajustados
-#El esferico tiene menos error, nos quedamos con esto
+#El lineal tiene menos error, nos quedamos con esto
 attr(dat_fit, 'SSErr')
 attr(dat_fit_s, 'SSErr')
 
@@ -248,7 +248,6 @@ v1 <- variogram(TMAX.med ~1, d_var,cutoff=50, width=5,  map = T)
 plot(v1)
 
 v.dir <-variogram(TMAX.med ~1, d_var,alpha = (0:3) * 45)
-help(variogram)
 v.anis <- vgm(psill = 40, "Lin", 20, anis = c(45, 0.3),nugget=0)
 plot(v.dir, v.anis)
 
@@ -283,10 +282,11 @@ smn_humedad_group <- smn_humedad %>%
   ungroup %>%
   select(x,y,HUM.med)
 
-View(smn_humedad_group)
+#View(smn_humedad_group)
 #hago un analisis de la temperatura maxima
 ggplot() + geom_histogram(data=smn_humedad, aes(x= HUM)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
   ggtitle("Histograma de humedad para el 07-05-2021") + labs(x= "Humedad")
+#Los datos no son normales, estan bastante sesgados a la cola derecha
 qqnorm(smn_humedad$HUM)
 
 colnames(smn_humedad_group)
@@ -329,6 +329,6 @@ moran.test(smn_humedad_group$HUM.med, pesos_grilla)
 
 #HUMEDAD HISTORICO
 
-head(humedad_historico)
-View(t(humedad_historico))
+head(humedad_historico[,-1])
+View(t(humedad_historico[,-1]))
 
