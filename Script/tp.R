@@ -5,6 +5,11 @@ library(sf)
 library('Hmisc')
 library(spdep)
 library(sp)
+library(tmap)
+library(raster)
+library(geoR)
+library(spdep)
+library(gstat)
 
 # Primero leemos los archivos a utilizar
 departamentos <- st_read("Datos/Codgeo_Pais_x_dpto_con_datos/pxdptodatosok.shp")
@@ -115,8 +120,6 @@ head(temperaturas)
 temperaturas_2020 <- temperaturas[temperaturas$YEAR == 2020,]
 dim(temperaturas_2020)
 
-library(geoR)
-library(spdep)
 #Lo mergeo con el otro dataset
 smn_temp <- merge(x = temperaturas_2020, y = smn, by = "Estacion", all.x = TRUE)
 #agrego este dataset general para que no se rompa el graph de temperaturas
@@ -131,13 +134,14 @@ head(smn_temp)
 colnames(smn_temp)
 
 #Ahora agrupo.
+
 temp_max_group <- smn_temp %>% 
   arrange(Estacion, x, y, TMAX) %>% 
   group_by(Estacion) %>%
   mutate(TMAX.med = median(TMAX)) %>%
   slice(1) %>%
   ungroup %>%
-  select(x,y,TMAX.med ) 
+  dplyr::select(x,y,TMAX.med) 
 
 temp_min_group <- smn_temp %>% 
   arrange(Estacion, x, y, TMIN) %>% 
@@ -145,7 +149,7 @@ temp_min_group <- smn_temp %>%
   mutate(TMIN = median(TMIN)) %>%
   slice(1) %>%
   ungroup %>%
-  select(x,y,TMIN ) 
+  dplyr::select(x,y,TMIN ) 
 
 smn_temp_gral <- smn_temp_gral %>% filter(!is.na(x) & !is.na(y)) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
 class(smn_temp_gral)
@@ -180,7 +184,7 @@ plot(temp_max_geodata)
 # AUTOCORRELACION ESPACIAL
 
 #PUNTOS
-pares <- temp_max_group %>% select(x, y) %>% filter(!is.na(x), !is.na(y))
+pares <- temp_max_group %>% dplyr::select(x, y) %>% filter(!is.na(x), !is.na(y))
 class(pares)
 coordinates(pares) <- ~x+y
 
@@ -209,7 +213,7 @@ moran.test(temp_max_group$TMAX.med, pesos_grilla)
 ###################################  DATOS HISTORICOS  #################################
 ########################################################################################
 
-                              ## ******* HUMEDAD ******* ##
+############################### ******* HUMEDAD ******* ################################
 
 humedad_historico <- humedad_historico %>% gather(Mes, HUM, Enero:Diciembre)
 smn_humedad_h <- merge(x = humedad_historico, y = smn, by = "Estacion", all.x = TRUE)
@@ -233,7 +237,7 @@ class(hum_geodata)
 #Aca vemos que en la humedad no hay diferencias tan marcadas en regiones de país como en el caso de temperaturas.
 #No se ve una tendencia en las coordenadas y.
 plot(hum_geodata)
-hum_sf_h <- (smn_humedad_h)%>% select(x,y,HUM) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
+hum_sf_h <- (smn_humedad_h)%>% dplyr::select(x,y,HUM) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
 
 #En detalle vemos la distribución de humedad. La mayor parte del país corresponde a puntos de humedad entre un 60% y 70%.
 #Algunas regiones destacan por tener valores muy altos de humedad, como es Iguazú. Los valores más bajos son algunas zonas de la Patagonia y de Cuyo.
@@ -249,12 +253,12 @@ smn_hum_h_group <- smn_humedad_h %>%
   mutate(HUM.med = median(HUM)) %>%
   slice(1) %>%
   ungroup %>%
-  select(x,y,HUM.med) 
+  dplyr::select(x,y,HUM.med) 
 
 
 #PUNTOS
 
-pares <- smn_hum_h_group %>% select(x, y) %>% filter(!is.na(x), !is.na(y))
+pares <- smn_hum_h_group %>% dplyr::select(x, y) %>% filter(!is.na(x), !is.na(y))
 class(pares)
 coordinates(pares) <- ~x+y
 
@@ -281,8 +285,7 @@ moran.test(smn_hum_h_group$HUM.med, pesos_grilla)
 
 # VARIOGRAMA
 
-library(gstat)
-h_var <- smn_hum_h_group %>% select(HUM.med, x,y)
+h_var <- smn_hum_h_group %>% dplyr::select(HUM.med, x,y)
 coordinates(h_var) <-~y+x
 variograma <-variogram(HUM.med ~1, h_var)
 
@@ -291,7 +294,7 @@ library(extrafont)
 loadfonts(device = "win")
 windowsFonts()
 ggplot(variograma, aes(x = dist, y = gamma)) +
-  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 160) +
+  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 180) +
   labs(title = expression("Variograma empírico de Humedad"), 
        x = "distancia", y = "semivarianza")+  
   theme_classic()+theme(text = element_text(family = "Arial"),
@@ -305,8 +308,8 @@ ggplot(variograma, aes(x = dist, y = gamma)) +
 variograma_nube <- variogram(HUM.med~1, h_var, cloud =TRUE)
 plot(variograma_nube, main= "Variograma nube de Humedad")
 
-dat_fit <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=200,model ="Lin", nugget =0,range=20))
-plot(variograma, dat_fit)
+dat_fit_hum <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=200,model ="Lin", nugget =1,range=20))
+plot(variograma, dat_fit_hum)
 
 ### Análisis de isotropía
 
@@ -316,7 +319,7 @@ plot(v1)
 
 #Lo miro ahora en las cuatro direcciones posibles
 v.dir <-variogram(HUM.med ~1, h_var,alpha = (0:3) * 45)
-v.anis <- vgm(psill = 200, "Lin", 20, anis = c(45, 0.3),nugget=0)
+v.anis <- vgm(psill = 140, "Lin", 20, anis = c(45, 0.3),nugget=50)
 plot(v.dir, v.anis)
 
 v.dir$direction <- factor(v.dir$dir.hor, levels = c(0, 45, 90, 135),
@@ -334,6 +337,40 @@ ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) +
                         axis.text.y = element_text(size = 11, family = "Arial", face = 'bold'), 
                         axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
                         axis.title = element_text(size = 11, face = "bold"))
+
+
+# KRIGGING
+
+class(departamentos)
+departamentos_sina <- departamentos %>% filter(departamen != "Antártida Argentina", departamen != "Islas del Atlántico Sur")
+class(departamentos_sina)
+dep_grilla <- as_Spatial(departamentos_sina)
+class(dep_grilla)
+
+grilla <- as.data.frame(spsample(dep_grilla, "regular", n = 5000))
+names(grilla) <- c("X", "Y")
+coordinates(grilla) <- c("X", "Y")
+plot(grilla)
+
+gridded(grilla) <- TRUE
+fullgrid(grilla) <- TRUE
+
+proj4string(grilla) <- proj4string(dep_grilla)
+proj4string(h_var) <- proj4string(dep_grilla)
+
+dar_krg <- krige(HUM.med ~ 1,h_var,grilla, model = dat_fit_hum, nmax = 20)
+summary(dar_krg$var1.pred)
+
+r <- raster(dar_krg, layer = "var1.pred" )
+r.m <- mask(r, dep_grilla)
+
+plot(r.m)
+
+tm_shape(r.m) +
+  tm_raster(n = 10, palette = wes_palette("Cavalcanti1")) +
+  tm_shape(d_var) + tm_dots(size = .1) +
+  tm_legend(legend.outside = TRUE)
+
 
 
                             ## ******* TEMPERATURA ******* ##
@@ -358,7 +395,7 @@ class(temp_geodata)
 
 #Aca vemos que, si bien las temperaturas medias de entre 10°C y 20°C se repiten en varias regiones del país, las temperaturas más frías y cálidas registradas se diferencian fuertemente entre norte y sur.
 plot(temp_geodata)
-temp_sf_h <- (smn_temp_h)%>% select(x,y,TEMP) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
+temp_sf_h <- (smn_temp_h)%>% dplyr::select(x,y,TEMP) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
 options(sf_max.plot=1)
 plot(temp_sf_h, pch =15 ,breaks = c(0,10,15,20,30),cex = 1)
 
@@ -372,9 +409,9 @@ smn_temp_h_group <- smn_temp_h %>%
   mutate(TEMP.med = median(TEMP)) %>%
   slice(1) %>%
   ungroup %>%
-  select(x,y,TEMP.med) 
+  dplyr::select(x,y,TEMP.med) 
 
-pares <- smn_temp_h_group %>% select(x, y) %>% filter(!is.na(x), !is.na(y))
+pares <- smn_temp_h_group %>% dplyr::select(x, y) %>% filter(!is.na(x), !is.na(y))
 class(pares)
 coordinates(pares) <- ~x+y
 
@@ -400,9 +437,9 @@ moran.test(smn_temp_h_group$TEMP.med, pesos_grilla)
 
 # VARIOGRAMA 
 
-d_var <- smn_temp_h_group %>% select(TEMP.med, x,y)
-coordinates(d_var) <-~y+x
-variograma <-variogram(TEMP.med ~1, d_var)
+t_var <- smn_temp_h_group %>% dplyr::select(TEMP.med, x,y)
+coordinates(t_var) <-~y+x
+variograma <-variogram(TEMP.med ~1, t_var)
 
 loadfonts(device = "win")
 windowsFonts()
@@ -420,21 +457,21 @@ ggplot(variograma, aes(x = dist, y = gamma)) +
                         axis.title = element_text(size = 11, face = "bold"))
 
 #vemos toda la nube
-variograma_nube <- variogram(TMAX.med~1, d_var, cloud =TRUE)
+variograma_nube <- variogram(TEMP.med~1, t_var, cloud =TRUE)
 plot(variograma_nube, main= "Variograma nube de Temperatura")
 
-dat_fit <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=20, model ="Lin", nugget =0,range=20))
-plot(variograma, dat_fit)
+dat_fit_tem <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=20, model ="Lin", nugget =0,range=20))
+plot(variograma, dat_fit_tem)
 
 ### Análisis de isotropía
 
-v2 <- variogram(TEMP.med ~1, d_var,cutoff=50, width=5,  map = T)
+v2 <- variogram(TEMP.med ~1, t_var,cutoff=50, width=5,  map = T)
 # Que sea todo del mismo color me dice que el proceso es isotrópico porque solo mira la magnitud,
 # no si es algo de norte a sur, etc Porque el mapa me dice que me muevo de norte a sur y no hay cambios debido a eso.
 plot(v2)
 
-v2.dir <-variogram(TEMP.med ~1, d_var,alpha = (0:3) * 45)
-v2.anis <- vgm(psill = 20, "Lin", 20, anis = c(45, 0.3),nugget=0)
+v2.dir <-variogram(TEMP.med~1, t_var,alpha = (0:3) * 45)
+v2.anis <- vgm(psill = 20, "Lin", 20, anis = c(45, 0.3),nugget=25)
 plot(v2.dir, v2.anis)
 
 v2.dir$direction <- factor(v2.dir$dir.hor, levels = c(0, 45, 90, 135),
@@ -457,11 +494,16 @@ ggplot(v2.dir, aes(x = dist, y = gamma, colour = direction)) +
 
 # KRIGGING
 
-mass <- as_Spatial(departamentos)
-grd <- as.data.frame(spsample(mass, "regular", n = 5000))
-warnings()
+proj4string(t_var) <- proj4string(dep_grilla)
 
-names(grd) <- c("X", "Y")
-coordinates(grd) <- c("X", "Y")
-gridded(grd) <- TRUE
-fullgrid(grd) <- TRUE
+dar_krg <- krige(TEMP.med ~ 1,t_var,grilla, model = dat_fit_tem, nmax = 5)
+summary(dar_krg$var1.pred)
+
+r <- raster(dar_krg, layer = "var1.pred" )
+r.m <- mask(r, dep_grilla)
+plot(r.m)
+
+tm_shape(r.m) +
+  tm_raster(n = 10, palette = wes_palette("Moonrise3")) +
+  tm_shape(d_var) + tm_dots(size = .1) +
+  tm_legend(legend.outside = TRUE)
