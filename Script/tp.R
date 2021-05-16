@@ -158,13 +158,24 @@ temp_max <- smn_temp_gral[,c(16,3)]
 temp_min <- smn_temp_gral[,c(16,4)]
 
 #filtro dataset para sacar antartida
-smn_temp_sina <- smn_temp_gral %>% filter(Provincia != "ANTARTIDA")
+smn_temp_sina <- smn_temp %>% filter(Provincia != "ANTARTIDA")
 
-par(mfrow=c(1,2))
+par(mfrow=c(2,2))
 qqnorm(temp_max$TMAX, ylim=c(-30,50))
 qqnorm(smn_temp_sina$TMAX, ylim =c(-30,50))
-ggplot() + geom_histogram(data=temp_max, aes(x= TMAX)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
-      ggtitle("Histograma de temperatura mediana") + labs(x= "temperatura máxima")
+
+hist(temp_max$TMAX, xlab = "Temperatura máxima",col="slategray1", xlim=c(-30,60), main="Histograma temperatura",prob=TRUE)
+lines(density(temp_max$TMAX), # density plot
+      lwd = 2, # thickness of line
+      col = "gray20")
+hist(smn_temp_sina$TMAX, xlab = "Temperatura máxima",col="slategray1", xlim =c(-30,60), main="Histograma temperatura sin Antártida",prob=TRUE) 
+lines(density(smn_temp_sina$TMAX),lwd=2, col="gray20")
+
+
+shapiro.test(sample(temp_max$TMAX, 5000))
+shapiro.test(sample(smn_temp_sina$TMAX,5000))
+
+
 par(mfrow=c(1,1))
 plot(temp_max,pch = 15 ,cex = 1)
 
