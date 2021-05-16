@@ -172,9 +172,31 @@ hist(smn_temp_sina$TMAX, xlab = "Temperatura máxima",col="slategray1", xlim =c(-
 lines(density(smn_temp_sina$TMAX),lwd=2, col="gray20")
 
 
-shapiro.test(sample(temp_max$TMAX, 5000))
-shapiro.test(sample(smn_temp_sina$TMAX,5000))
+##Para testear normalidad 
+pvalue1 <- vector(length=5000)
+pvalue2 <- vector(length=5000)
+wvalue1 <- vector(length=5000)
+wvalue2 <- vector(length = 5000)
+set.seed(100)
+#Test de Shapiro
+for (i in 1:5000){
+  pvalue1[i] <- shapiro.test(sample(temp_max$TMAX, 5000))$p.value
+  wvalue1[i]<- shapiro.test(sample(temp_max$TMAX, 5000))$statistic
+  pvalue2[i] <- shapiro.test(sample(smn_temp_sina$TMAX,5000))$p.value
+  wvalue2[i] <- shapiro.test(sample(smn_temp_sina$TMAX,5000))$statistic
+    }
 
+
+mean(pvalue1)
+mean(pvalue2)
+mean(wvalue1)
+mean(wvalue2)
+
+#Test de Kolmogorov-Smirnov.
+normal1 <- rnorm(length(temp_max$TMAX), mean(temp_max$TMAX), sd(temp_max$TMAX))
+normal2 <- rnorm(length(smn_temp_sina$TMAX), mean(smn_temp_sina$TMAX), sd(smn_temp_sina$TMAX))
+ks.test(temp_max$TMAX, normal1)
+ks.test(smn_temp_sina$TMAX, normal2)
 
 par(mfrow=c(1,1))
 plot(temp_max,pch = 15 ,cex = 1)
