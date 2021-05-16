@@ -13,7 +13,6 @@ library(gstat)
 library(wesanderson)
 library(extrafont)
 loadfonts(device = "win")
-windowsFonts()
 
 # Primero leemos los archivos a utilizar
 departamentos <- st_read("Datos/Codgeo_Pais_x_dpto_con_datos/pxdptodatosok.shp")
@@ -347,6 +346,7 @@ if (require(ggplot2, quietly=TRUE)) {
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
     geom_point(data=mp[mp$is_inf,], aes(x=x, y=wx), shape=9) +
     geom_text(data=mp[mp$is_inf,], aes(x=x, y=wx, label=labels, vjust=1.5)) +
+    ggtitle("Moran I Scatter Plot" ,round(moran.test(smn_hum_h_group$HUM.med, pesos_grilla)[3]$estimate[1],3))+
     xlab("Humedad") + ylab(paste0("Spatially lagged ", "Humedad"))
 }
 
@@ -392,14 +392,16 @@ v.dir$direction <- factor(v.dir$dir.hor, levels = c(0, 45, 90, 135),
 ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) + 
   geom_point(size = 1.8) + 
   labs(title = expression("Variograma direccional Humedad"), 
-       x = "distancia", y = "semivariance", colour = "dirección") + geom_line(size=1.5)+
+       x = "distance", y = "semivariance", colour = "dirección") + geom_line(size=1.5)+
   scale_color_manual(values=wes_palette("Cavalcanti1"))+
   theme_classic()+theme(text = element_text(family = "Arial"),
+                        legend.title = element_text(size = 20),
+                        legend.text = element_text(size = 20),
                         panel.grid.major = element_blank(),
-                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 11, family = "Arial", face = 'bold'), 
-                        axis.text.y = element_text(size = 11, family = "Arial", face = 'bold'), 
-                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
-                        axis.title = element_text(size = 11, face = "bold"))
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 20, family = "Arial", face = 'bold'), 
+                        axis.text.y = element_text(size = 20, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 25, face = "bold"),
+                        axis.title = element_text(size = 20, face = "bold"))
 
 
 # KRIGGING
@@ -431,7 +433,7 @@ plot(r.m)
 
 tm_shape(r.m) +
   tm_raster(n = 10, palette = wes_palette("Cavalcanti1")) +
-  tm_shape(d_var) + tm_dots(size = .1) +
+  tm_shape(h_var) + tm_dots(size = .1) +
   tm_legend(legend.outside = TRUE)
 
 
@@ -526,7 +528,8 @@ if (require(ggplot2, quietly=TRUE)) {
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
     geom_point(data=mp[mp$is_inf,], aes(x=x, y=wx), shape=9) +
     geom_text(data=mp[mp$is_inf,], aes(x=x, y=wx, label=labels, vjust=1.5)) +
-    xlab("Humedad") + ylab(paste0("Spatially lagged ", "Humedad"))
+    ggtitle("Moran I Scatter Plot" ,round(moran.test(smn_temp_h_group$TEMP.med, pesos_grilla)[3]$estimate[1],3))+
+    xlab("Temperatura") + ylab(paste0("Spatially lagged ", "Temperatura"))
 }
 # VARIOGRAMA 
 
@@ -551,10 +554,23 @@ ggplot(variograma, aes(x = dist, y = gamma)) +
 
 #vemos toda la nube
 variograma_nube <- variogram(TEMP.med~1, t_var, cloud =TRUE)
+ggplot(variograma, aes(x = dist, y = gamma)) +
+  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 20) +
+  labs(title = expression("Variograma empírico de Temperaturas"), 
+       x = "distancia", y = "semivarianza")+  
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        axis.title.x =   element_blank(),
+                        axis.title.y = element_blank(),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 11, family = "Arial", face = 'bold'), 
+                        axis.text.y = element_text(size = 11, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
+                        axis.title = element_text(size = 11, face = "bold"))
+
 plot(variograma_nube, main= "Variograma nube de Temperatura")
 
 dat_fit_tem <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=20, model ="Lin", nugget =0,range=20))
-plot(variograma, dat_fit_tem)
+plot(variograma, dat_fit_tem, main = "Variograma Teórico de Temperatura")
 
 ### Análisis de isotropía
 
@@ -578,11 +594,13 @@ ggplot(v2.dir, aes(x = dist, y = gamma, colour = direction)) +
        x = "distancia", y = "semivariance", colour = "dirección") + geom_line(size=1.5)+
   scale_color_manual(values=wes_palette("Cavalcanti1"))+
   theme_classic()+theme(text = element_text(family = "Arial"),
+                        legend.title = element_text(size = 20),
+                        legend.text = element_text(size = 20),
                         panel.grid.major = element_blank(),
-                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 11, family = "Arial", face = 'bold'), 
-                        axis.text.y = element_text(size = 11, family = "Arial", face = 'bold'), 
-                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
-                        axis.title = element_text(size = 11, face = "bold"))
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 20, family = "Arial", face = 'bold'), 
+                        axis.text.y = element_text(size = 20, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 25, face = "bold"),
+                        axis.title = element_text(size = 20, face = "bold"))
 
 
 # KRIGGING
@@ -600,3 +618,27 @@ tm_shape(r.m) +
   tm_raster(n = 10, palette = wes_palette("Moonrise3")) +
   tm_shape(d_var) + tm_dots(size = .1) +
   tm_legend(legend.outside = TRUE)
+
+####
+#Normalized
+
+t_var_n <- smn_temp_h_group %>% dplyr::select(TEMP.med, x,y)
+t_var_n$TEMP.norm <- (t_var_n$TEMP.med - mean(t_var_n$TEMP.med))/sd(t_var_n$TEMP.med)
+t_var_n <- t_var_n %>% dplyr::select(TEMP.norm, x,y)
+coordinates(t_var_n) <-~y+x
+variograma <-variogram(TEMP.norm ~1, t_var_n)
+
+loadfonts(device = "win")
+windowsFonts()
+ggplot(variograma, aes(x = dist, y = gamma)) +
+  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 1.5) +
+  labs(title = expression("Variograma empírico de Temperaturas"), 
+       x = "distancia", y = "semivarianza")+  
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        axis.title.x =   element_blank(),
+                        axis.title.y = element_blank(),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 11, family = "Arial", face = 'bold'), 
+                        axis.text.y = element_text(size = 11, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
+                        axis.title = element_text(size = 11, face = "bold"))
