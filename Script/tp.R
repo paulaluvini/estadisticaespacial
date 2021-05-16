@@ -39,7 +39,7 @@ grafico2
 summary(smn)
 colnames(smn)
 #Cambio este nombre para que se lea mejor
-smn <- smn %>% rename(Estacion =  ï..NOMBRE) 
+smn <- smn %>% rename(Estacion =NOMBRE) 
 summary(smn$Provincia)
 describe(smn)
 
@@ -56,14 +56,14 @@ smn$x <- smn$Longitud.gr.-smn$minutos_longitud
 smn$y <- smn$Latitud.gr.-smn$minutos_latitud
 head(smn)
 
-ggplot() + geom_sf(data = departamentos) + geom_point(data = smn, aes(x=x, y=y),
-                                                      colour = "dodgerblue1", size = 1)+ theme_classic()
+ggplot() + geom_sf(data = departamentos,fill = c('seashell'), color = "slategray",size = 0.50) + geom_point(data = smn, aes(x=x, y=y),
+                                                      colour = "royalblue1", size = 1)+ theme_classic()
 
 departamentos_ba <- departamentos %>% filter(provincia == "Buenos Aires")
 smn_ba <- smn %>% filter(Provincia == "BUENOS AIRES")
 
-ggplot() + geom_sf(data = departamentos_ba) + 
-  geom_point(data = smn_ba, aes(x=x, y=y),colour = "dodgerblue1", size = 1)+ 
+ggplot() + geom_sf(data = departamentos_ba,fill = c('seashell'), color = "slategray") + 
+  geom_point(data = smn_ba, aes(x=x, y=y),colour = "royalblue1", size = 2)+ 
   theme_classic() +geom_text(data= smn_ba, aes(x,y, label = Estacion), size = 2, fontface = "bold",vjust = -0.5)+
   ggtitle("Estaciones Meteorológicas", subtitle = "Provincia de Buenos Aires") + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank())
 
@@ -83,10 +83,10 @@ bbox_new
 bbox_new <- bbox_new %>%  # take the bounding box ...
   st_as_sfc()
 
-ggplot() + geom_sf(data = departamentos_amba) + 
+ggplot() + geom_sf(data = departamentos_amba,fill = c('seashell'), color = "slategray") + 
   coord_sf(xlim = st_coordinates(bbox_new)[c(1,2),1],ylim = st_coordinates(bbox_new)[c(2,3),2])+ 
-  geom_point(data = smn_amba, aes(x=x, y=y),colour = "dodgerblue1", size = 2)+ theme_classic() +
-  geom_text(data= smn_amba, aes(x,y, label = Estacion), size = 3, fontface = "bold", vjust = -0.5)+
+  geom_point(data = smn_amba, aes(x=x, y=y),colour = "dodgerblue1", size = 3)+ theme_classic() +
+  geom_text(data= smn_amba, aes(x,y, label = Estacion), size = 2, fontface = "bold", vjust = -0.5)+
   ggtitle("Estaciones Meteorológicas", subtitle = "Area Metropolitana") + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank())
 grafico2
   #theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed",size = 0.5),
@@ -122,7 +122,7 @@ dim(temperaturas_2020)
 
 #Lo mergeo con el otro dataset
 smn_temp <- merge(x = temperaturas_2020, y = smn, by = "Estacion", all.x = TRUE)
-#agrego este dataset general para que no se rompa el graph de temperaturas
+#agrego este dataset general que incluye todos los años
 smn_temp_gral <- merge(x= temperaturas, y = smn, by="Estacion", all.x=TRUE)
 #Filtro los na
 smn_temp <- smn_temp %>% filter(!is.na(x) & !is.na(y) & !is.na(TMAX) & !is.na(TMIN))
@@ -157,7 +157,7 @@ temp_max <- smn_temp_gral[,c(16,3)]
 #temp_min <- temp_max_group[,c(16,17,4)]
 temp_min <- smn_temp_gral[,c(16,4)]
 
-#hago un analisis de la temperatura maxima
+#filtro dataset para sacar antartida
 smn_temp_sina <- smn_temp_gral %>% filter(Provincia != "ANTARTIDA")
 
 par(mfrow=c(1,2))
