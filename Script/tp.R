@@ -10,6 +10,10 @@ library(raster)
 library(geoR)
 library(spdep)
 library(gstat)
+library(wesanderson)
+library(extrafont)
+loadfonts(device = "win")
+windowsFonts()
 
 # Primero leemos los archivos a utilizar
 departamentos <- st_read("Datos/Codgeo_Pais_x_dpto_con_datos/pxdptodatosok.shp")
@@ -39,7 +43,7 @@ grafico2
 summary(smn)
 colnames(smn)
 #Cambio este nombre para que se lea mejor
-smn <- smn %>% rename(Estacion =NOMBRE) 
+smn <- smn %>% rename(Estacion =ï..NOMBRE) 
 summary(smn$Provincia)
 describe(smn)
 
@@ -254,17 +258,26 @@ smn_humedad_h <- smn_humedad_h %>% filter(!is.na(x) & !is.na(y) & !is.na(HUM))
 
 #hago un analisis de la humedad historica. Veo que tiene una cola bastante pronunciada hacia la derecha, hay mas valores de humedad por encima del 60%.
 ggplot() + geom_histogram(data=smn_humedad_h, aes(x= HUM)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
-  ggtitle("Histograma de humedad histórico") + labs(x= "Humedad") +theme(text = element_text(family = "Arial"),
+  ggtitle("Histograma de humedad histórico") + labs(x= "Humedad") +theme(text = element_text(family = "JP1"),
                                                                          panel.grid.major = element_blank(),
-                                                                         panel.grid.minor = element_blank(), axis.text.x = element_text(size = 10, family = "Arial", face = 'bold'), 
-                                                                         axis.text.y = element_text(size = 10, family = "Arial", face = 'bold'), 
+                                                                         panel.grid.minor = element_blank(), axis.text.x = element_text(size = 10, family ="JP1", face = 'bold'), 
+                                                                         axis.text.y = element_text(size = 10, family = "JP1", face = 'bold'), 
                                                                          axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
                                                                          axis.title = element_text(size = 11, face = "bold"))
+
 #Los datos no son normales, estan bastante sesgados a la cola derecha
 qqnorm(smn_humedad_h$HUM)
 
+#Test de Kolmogorov-Smirnov.
+normal1 <- rnorm(length(smn_humedad_h$HUM), mean(smn_humedad_h$HUM), sd(smn_humedad_h$HUM))
+ks.test(smn_humedad_h$HUM, normal1)
+
+
+par(mfrow=c(1,1))
+plot(temp_max,pch = 15 ,cex = 1)
+
 colnames(smn_humedad_h)
-smn_humedad_h <- smn_humedad_h[,c(14,15,3)]
+smn_humedad_h <- smn_humedad_h[,c(14,15,3,1)]
 hum_geodata <- as.geodata(smn_humedad_h)
 class(hum_geodata)
 #Aca vemos que en la humedad no hay diferencias tan marcadas en regiones de país como en el caso de temperaturas.
@@ -282,12 +295,11 @@ plot(hum_sf_h,breaks = c(0,10,20,30,40,50,60,70,80,90,100),pch =15 ,cex = 1)
 # Agrupo por mayor facilidad los datos
 smn_hum_h_group <- smn_humedad_h %>% 
   arrange(x, y, HUM) %>% 
-  group_by(x,y) %>%
+  group_by(Estacion) %>%
   mutate(HUM.med = median(HUM)) %>%
   slice(1) %>%
   ungroup %>%
-  dplyr::select(x,y,HUM.med) 
-
+  dplyr::select(x,y,HUM.med, Estacion) 
 
 #PUNTOS
 
@@ -304,7 +316,7 @@ all.linked <- max(unlist(nbdists(k1, pares)))
 #Miro entonces qué distancia maxima tiene que haber para que estén todos conectados.
 print(all.linked)
 
-pares_grilla <- dnearneigh(pares, 0, 5)
+pares_grilla <- dnearneigh(pares, 0, all.linked)
 class(pares_grilla)
 #Voy a ver todos los puntos en el mapa y sus relaciones
 plot(pares_grilla, pares)
@@ -313,8 +325,30 @@ plot(pares_grilla, pares)
 pesos_grilla <- nb2listw(pares_grilla, style = "W", zero.policy=TRUE )
 
 #Vemos que sí estan autocorrelacionados espacialmente.
-options(scipen=20)
+options(scipen=2)
 moran.test(smn_hum_h_group$HUM.med, pesos_grilla)
+
+par(mfrow= c(1,1))
+par(mar=c(4,4,1.5,0.5))
+
+#Graficamos
+mp <- moran.plot(smn_hum_h_group$HUM.med, listw=pesos_grilla, zero.policy=TRUE, 
+           pch=16, col="black",cex=.5, quiet=TRUE,
+           xlim=c(50,80),ylim=c(60,75),
+           labels=as.character(smn_hum_h_group$Estacion))
+moran.plot(as.vector(scale(smn_hum_h_group$HUM.med)), pesos_grilla,
+           labels=as.character(smn_hum_h_group$Estacion), xlim=c(-2, 4), ylim=c(-2,4), pch=19)
+if (require(ggplot2, quietly=TRUE)) {
+  xname <- attr(mp, "xname")
+  ggplot(mp, aes(x=x, y=wx)) + geom_point(shape=1) + 
+    geom_smooth(formula=y ~ x, method="lm") +  
+    geom_hline(yintercept=mean(mp$wx), lty=2) + 
+    geom_vline(xintercept=mean(mp$x), lty=2) + theme_minimal() + 
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+    geom_point(data=mp[mp$is_inf,], aes(x=x, y=wx), shape=9) +
+    geom_text(data=mp[mp$is_inf,], aes(x=x, y=wx, label=labels, vjust=1.5)) +
+    xlab("Humedad") + ylab(paste0("Spatially lagged ", "Humedad"))
+}
 
 # VARIOGRAMA
 
@@ -322,10 +356,6 @@ h_var <- smn_hum_h_group %>% dplyr::select(HUM.med, x,y)
 coordinates(h_var) <-~y+x
 variograma <-variogram(HUM.med ~1, h_var)
 
-library(wesanderson)
-library(extrafont)
-loadfonts(device = "win")
-windowsFonts()
 ggplot(variograma, aes(x = dist, y = gamma)) +
   geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 180) +
   labs(title = expression("Variograma empírico de Humedad"), 
@@ -417,12 +447,23 @@ smn_temp_h <- smn_temp_h %>% filter(!is.na(x) & !is.na(y) & !is.na(TEMP))
 
 #hago un analisis de la temperatura historica
 #Vemos que acá hay colas menos pesadas que en el caso de humedad y con una distribución más normal.
-ggplot() + geom_histogram(data=smn_temp_h, aes(x= TEMP)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
+ggplot() + geom_histogram(data=smn_temp_h, aes(x= TEMP), binwidth = 1) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
   ggtitle("Histograma de temperatura historico") + labs(x= "temperatura")
+
+#COMPARO CON EL DE 2020
+ggplot() + geom_histogram(data=temp_max, aes(x= TMAX), binwidth = 1) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
+  ggtitle("Histograma de temperatura maxima 2020") + labs(x= "temperatura maxima")
+
+par(mfrow = c(1,2))
 qqnorm(smn_temp_h$TEMP)
+qqnorm(temp_max$TMAX)
+
+#Test de Kolmogorov-Smirnov.
+normal1 <- rnorm(length(smn_temp_h$TEMP), mean(smn_temp_h$TEMP), sd(smn_temp_h$TEMP))
+ks.test(smn_temp_h$TEMP, normal1)
 
 colnames(smn_temp_h)
-smn_temp_h <- smn_temp_h[,c(14,15,3)]
+smn_temp_h <- smn_temp_h[,c(14,15,3,1)]
 temp_geodata <- as.geodata(smn_temp_h)
 class(temp_geodata)
 
@@ -438,11 +479,11 @@ plot(temp_sf_h, pch =15 ,breaks = c(0,10,15,20,30),cex = 1)
 
 smn_temp_h_group <- smn_temp_h %>% 
   arrange(x, y, TEMP) %>% 
-  group_by(x,y) %>%
+  group_by(Estacion) %>%
   mutate(TEMP.med = median(TEMP)) %>%
   slice(1) %>%
   ungroup %>%
-  dplyr::select(x,y,TEMP.med) 
+  dplyr::select(x,y,TEMP.med, Estacion) 
 
 pares <- smn_temp_h_group %>% dplyr::select(x, y) %>% filter(!is.na(x), !is.na(y))
 class(pares)
@@ -456,7 +497,7 @@ k1 <- knn2nb(knearneigh(pares))
 all.linked <- max(unlist(nbdists(k1, pares)))
 print(all.linked)
 
-pares_grilla <- dnearneigh(pares, 0, 4)
+pares_grilla <- dnearneigh(pares, 0, all.linked)
 class(pares_grilla)
 #Voy a ver todos los puntos en el mapa y sus relaciones
 plot(pares_grilla, pares)
@@ -464,10 +505,29 @@ plot(pares_grilla, pares)
 #Hace pesos para los vecinos dividiendo 1 por la cantidad de vecinos que ese punto tiene.
 pesos_grilla <- nb2listw(pares_grilla, style = "W", zero.policy=TRUE )
 
-#Vemos que no estan autocorrelacionados espacialmente.
-options(scipen=20)
+#Vemos que estan autocorrelacionados espacialmente.
+options(scipen=2)
 moran.test(smn_temp_h_group$TEMP.med, pesos_grilla)
-
+#Graficamos
+par(mfrow = c(1,1))
+par(mar=c(4,4,1.5,0.5))
+mp <- moran.plot(smn_temp_h_group$TEMP.med, listw=pesos_grilla, zero.policy=TRUE, 
+           pch=16, col="black",cex=.5, quiet=TRUE,
+           xlim=c(5,25),ylim=c(5,25),
+           labels=as.character(smn_temp_h_group$Estacion))
+moran.plot(as.vector(scale(smn_temp_h_group$TEMP.med)), pesos_grilla,
+           labels=as.character(smn_temp_h_group$Estacion), xlim=c(-2, 4), ylim=c(-2,4), pch=19)
+if (require(ggplot2, quietly=TRUE)) {
+  xname <- attr(mp, "xname")
+  ggplot(mp, aes(x=x, y=wx)) + geom_point(shape=1) + 
+    geom_smooth(formula=y ~ x, method="lm") +  
+    geom_hline(yintercept=mean(mp$wx), lty=2) + 
+    geom_vline(xintercept=mean(mp$x), lty=2) + theme_minimal() + 
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
+    geom_point(data=mp[mp$is_inf,], aes(x=x, y=wx), shape=9) +
+    geom_text(data=mp[mp$is_inf,], aes(x=x, y=wx, label=labels, vjust=1.5)) +
+    xlab("Humedad") + ylab(paste0("Spatially lagged ", "Humedad"))
+}
 # VARIOGRAMA 
 
 t_var <- smn_temp_h_group %>% dplyr::select(TEMP.med, x,y)
