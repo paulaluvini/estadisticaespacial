@@ -177,32 +177,80 @@ lines(density(temp_max$TMAX), # density plot
 hist(smn_temp_sina$TMAX, xlab = "Temperatura máxima",col="slategray1", xlim =c(-30,60), main="Histograma temperatura sin Antártida",prob=TRUE) 
 lines(density(smn_temp_sina$TMAX),lwd=2, col="gray20")
 
+######temperatura historicos 
+
+temperatura_historico <- temperatura_historico %>% gather(Mes, temp, Enero:Diciembre)
+smn_temperatura_h <- merge(x = temperatura_historico, y = smn, by = "Estacion", all.x = TRUE)
+smn_temperatura_h <- smn_temperatura_h %>% filter(!is.na(x) & !is.na(y) & !is.na(temp))
+
+#hago un analisis de la humedad historica. Veo que tiene una cola bastante pronunciada hacia la derecha, hay mas valores de humedad por encima del 60%.
+ggplot() + geom_histogram(data=smn_temperatura_h, aes(x= temp)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
+  ggtitle("Histograma de temperatura histórico") + labs(x= "Temperatura") +theme(text = element_text(family = "JP1"),
+                                                                                 panel.grid.major = element_blank(),
+                                                                                 panel.grid.minor = element_blank(), axis.text.x = element_text(size = 10, family ="JP1", face = 'bold'), 
+                                                                                 axis.text.y = element_text(size = 10, family = "JP1", face = 'bold'), 
+                                                                                 axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
+                                                                                 axis.title = element_text(size = 11, face = "bold"))
+
+#Los datos no son normales, estan bastante sesgados a la cola derecha
+qqnorm(smn_temperatura_h$temp)
+qqline(smn_temperatura_h$temp)
+
+#Test de Kolmogorov-Smirnov.
+normal1 <- rnorm(length(smn_temperatura_h$temp), mean(smn_temperatura_h$temp), sd(smn_temperatura_h$temp))
+ks.test(smn_temperatura_h$temp, normal1)
+
+
+par(mfrow=c(1,1))
+plot(temp_max,pch = 15 ,cex = 1)
+
+colnames(smn_temperatura_h)
+smn_temperatura_h <- smn_temperatura_h[,c(14,15,3,1)]
+temp_geodata <- as.geodata(smn_temperatura_h)
+class(temp_geodata)
+#Aca vemos que en la humedad no hay diferencias tan marcadas en regiones de país como en el caso de temperaturas.
+#No se ve una tendencia en las coordenadas y.
+plot(temp_geodata)
+temp_sf_h <- (smn_temperatura_h)%>% dplyr::select(x,y,temp) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
+
+#En detalle vemos la distribución de humedad. La mayor parte del país corresponde a puntos de humedad entre un 60% y 70%.
+#Algunas regiones destacan por tener valores muy altos de humedad, como es Iguazú. Los valores más bajos son algunas zonas de la Patagonia y de Cuyo.
+options(sf_max.plot=1)
+plot(temp_sf_h, main = "Temperatura media histórica")
+
 
 ##Para testear normalidad 
-pvalue1 <- vector(length=5000)
-pvalue2 <- vector(length=5000)
-wvalue1 <- vector(length=5000)
-wvalue2 <- vector(length = 5000)
-set.seed(100)
+n=5000
+m=5000
+pvalue1 <- vector(length=n)
+pvalue2 <- vector(length=n)
+wvalue1 <- vector(length=n)
+wvalue2 <- vector(length =n)
+
 #Test de Shapiro
-for (i in 1:5000){
-  pvalue1[i] <- shapiro.test(sample(temp_max$TMAX, 5000))$p.value
-  wvalue1[i]<- shapiro.test(sample(temp_max$TMAX, 5000))$statistic
-  pvalue2[i] <- shapiro.test(sample(smn_temp_sina$TMAX,5000))$p.value
-  wvalue2[i] <- shapiro.test(sample(smn_temp_sina$TMAX,5000))$statistic
+for (i in 1:n){
+  pvalue1[i] <- shapiro.test(sample(temp_max$TMAX, m))$p.value
+  wvalue1[i]<- shapiro.test(sample(temp_max$TMAX, m))$statistic
+  pvalue2[i] <- shapiro.test(sample(smn_temp_sina$TMAX,m))$p.value
+  wvalue2[i] <- shapiro.test(sample(smn_temp_sina$TMAX,m))$statistic
+  
     }
 
+shapiro_hist <- shapiro.test(smn_temperatura_h$temp)
 
 mean(pvalue1)
 mean(pvalue2)
 mean(wvalue1)
 mean(wvalue2)
-
+pvalue3 <- shapiro_hist$p.value
+wvalue3 <- shapiro_hist$statistic
 #Test de Kolmogorov-Smirnov.
 normal1 <- rnorm(length(temp_max$TMAX), mean(temp_max$TMAX), sd(temp_max$TMAX))
 normal2 <- rnorm(length(smn_temp_sina$TMAX), mean(smn_temp_sina$TMAX), sd(smn_temp_sina$TMAX))
+normal3 <- rnorm(length(smn_temperatura_h$temp), mean(smn_temperatura_h$temp), sd(smn_temperatura_h$temp))
 ks.test(temp_max$TMAX, normal1)
 ks.test(smn_temp_sina$TMAX, normal2)
+ks.test(smn_temperatura_h$temp, normal3)
 
 par(mfrow=c(1,1))
 plot(temp_max,pch = 15 ,cex = 1)
@@ -293,46 +341,6 @@ options(sf_max.plot=1)
 plot(hum_sf_h,breaks = c(0,10,20,30,40,50,60,70,80,90,100),pch =15 ,cex = 1)
 
 
-######temperatura historicos 
-
-temperatura_historico <- temperatura_historico %>% gather(Mes, temp, Enero:Diciembre)
-smn_temperatura_h <- merge(x = temperatura_historico, y = smn, by = "Estacion", all.x = TRUE)
-smn_temperatura_h <- smn_temperatura_h %>% filter(!is.na(x) & !is.na(y) & !is.na(temp))
-
-#hago un analisis de la humedad historica. Veo que tiene una cola bastante pronunciada hacia la derecha, hay mas valores de humedad por encima del 60%.
-ggplot() + geom_histogram(data=smn_temperatura_h, aes(x= temp)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
-  ggtitle("Histograma de temperatura histórico") + labs(x= "Temperatura") +theme(text = element_text(family = "JP1"),
-                                                                         panel.grid.major = element_blank(),
-                                                                         panel.grid.minor = element_blank(), axis.text.x = element_text(size = 10, family ="JP1", face = 'bold'), 
-                                                                         axis.text.y = element_text(size = 10, family = "JP1", face = 'bold'), 
-                                                                         axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
-                                                                         axis.title = element_text(size = 11, face = "bold"))
-
-#Los datos no son normales, estan bastante sesgados a la cola derecha
-qqnorm(smn_temperatura_h$temp)
-qqline(smn_temperatura_h$temp)
-
-#Test de Kolmogorov-Smirnov.
-normal1 <- rnorm(length(smn_temperatura_h$temp), mean(smn_temperatura_h$temp), sd(smn_temperatura_h$temp))
-ks.test(smn_temperatura_h$temp, normal1)
-
-
-par(mfrow=c(1,1))
-plot(temp_max,pch = 15 ,cex = 1)
-
-colnames(smn_temperatura_h)
-smn_temperatura_h <- smn_temperatura_h[,c(14,15,3,1)]
-temp_geodata <- as.geodata(smn_temperatura_h)
-class(temp_geodata)
-#Aca vemos que en la humedad no hay diferencias tan marcadas en regiones de país como en el caso de temperaturas.
-#No se ve una tendencia en las coordenadas y.
-plot(temp_geodata)
-temp_sf_h <- (smn_temperatura_h)%>% dplyr::select(x,y,temp) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
-
-#En detalle vemos la distribución de humedad. La mayor parte del país corresponde a puntos de humedad entre un 60% y 70%.
-#Algunas regiones destacan por tener valores muy altos de humedad, como es Iguazú. Los valores más bajos son algunas zonas de la Patagonia y de Cuyo.
-options(sf_max.plot=1)
-plot(temp_sf_h,pch =15 ,cex = 1)
 
 
 
