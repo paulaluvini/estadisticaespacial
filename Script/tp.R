@@ -14,6 +14,7 @@ library(wesanderson)
 library(extrafont)
 library(LS2Wstat)
 loadfonts(device = "win")
+library(car)
 
 # Primero leemos los archivos a utilizar
 departamentos <- st_read("Datos/Codgeo_Pais_x_dpto_con_datos/pxdptodatosok.shp")
@@ -208,6 +209,8 @@ colnames(smn_temperatura_h)
 smn_temperatura_h <- smn_temperatura_h[,c(14,15,3,1)]
 temp_geodata <- as.geodata(smn_temperatura_h)
 class(temp_geodata)
+
+temp_geodata
 #Aca vemos que en la humedad no hay diferencias tan marcadas en regiones de país como en el caso de temperaturas.
 #No se ve una tendencia en las coordenadas y.
 plot(temp_geodata)
@@ -338,12 +341,28 @@ hum_sf_h <- (smn_humedad_h)%>% dplyr::select(x,y,HUM) %>% st_as_sf(coords =c("x"
 #En detalle vemos la distribución de humedad. La mayor parte del país corresponde a puntos de humedad entre un 60% y 70%.
 #Algunas regiones destacan por tener valores muy altos de humedad, como es Iguazú. Los valores más bajos son algunas zonas de la Patagonia y de Cuyo.
 options(sf_max.plot=1)
-plot(hum_sf_h,breaks = c(0,10,20,30,40,50,60,70,80,90,100),pch =15 ,cex = 1)
+plot(hum_sf_h,breaks = c(0,10,20,30,40,50,60,70,80,90,100),pch =15 ,cex = 1, main = "Humedad histórica")
 
 
 
+par(mfrow=c(2,2))
+
+qqPlot(smn_temperatura_h$temp, ylab="Temperatura", main = "QQPlot Temperatura",col.lines = "indianred", grid= FALSE)
+qqPlot(smn_humedad_h$HUM, ylab = "Humedad", main = "QQPlot Histograma",col.lines="indianred", grid= FALSE)
+
+hist(smn_temperatura_h$temp, xlab = "Temperatura ",col="gray20", main="Histograma temperatura",prob=TRUE)
+lines(density(smn_temperatura_h$temp), # density plot
+      lwd = 4, # thickness of line
+      col = "indianred")
+hist(smn_humedad_h$HUM, xlab = "Temperatura máxima",col="gray20", main="Histograma humedad",prob=TRUE) 
+lines(density(smn_humedad_h$HUM),lwd=4, col="indianred")
 
 
+shapiro.test(smn_humedad_h$HUM)
+normal3 <- rnorm(length(smn_humedad_h$HUM), mean(smn_humedad_h$HUM), sd(smn_humedad_h$HUM))
+ks.test(smn_humedad_h$HUM, normal3)
+
+par(mfrow=c(1,1))
 # AUTOCORRELACION ESPACIAL
 
 # Agrupo por mayor facilidad los datos
