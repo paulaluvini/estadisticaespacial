@@ -44,7 +44,7 @@ grafico2
 summary(smn)
 colnames(smn)
 #Cambio este nombre para que se lea mejor
-smn <- smn %>% rename(Estacion =NOMBRE) 
+smn <- smn %>% rename(Estacion =ï..NOMBRE) 
 summary(smn$Provincia)
 describe(smn)
 
@@ -269,10 +269,10 @@ if (require(ggplot2, quietly=TRUE)) {
 
 h_var <- smn_hum_h_group %>% dplyr::select(HUM.med, x,y)
 coordinates(h_var) <-~y+x
-variograma <-variogram(HUM.med ~x, h_var)
+variograma <-variogram(HUM.med ~x, h_var, width = 1.2, cutoff = 13)
 
 ggplot(variograma, aes(x = dist, y = gamma)) +
-  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 180) +
+  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 40) +
   labs(title = expression("Variograma empírico de Humedad"), 
        x = "distancia", y = "semivarianza")+  
   theme_classic()+theme(text = element_text(family = "Arial"),
@@ -299,11 +299,11 @@ ggplot(variograma_nube, aes(x = dist, y = gamma)) +
 ### Análisis de isotropía
 
 #Que no sea todo del mismo color me indica que habría isotropía en la data.
-v1 <- variogram(HUM.med ~x, h_var,cutoff=30, width=5,  map = T)
+v1 <- variogram(HUM.med ~x, h_var,cutoff=30, width=1.2,  map = T)
 plot(v1)
 
 #Lo miro ahora en las cuatro direcciones posibles
-v.dir <-variogram(HUM.med ~x, h_var,alpha = (0:3) * 45,width=2)
+v.dir <-variogram(HUM.med ~x, h_var,alpha = (0:3) * 45,width=1.2)
 v.anis <- vgm(psill = 40, "Lin", 15, anis = c(0, 0.9),nugget=5)
 plot(v.dir, v.anis, main = "Variogramas - Teóricos Humedad")
 
@@ -325,7 +325,7 @@ ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) +
                         axis.line = element_line(colour = "black"),plot.title = element_text(size = 25, face = "bold"),
                         axis.title = element_text(size = 20, face = "bold"))
 
-variograma <- variogram(HUM.med ~x, h_var, alpha = c(0,0),width=1)
+variograma <- variogram(HUM.med ~x, h_var, alpha = c(45,45),width=1.2,cutoff = 13)
 dat_fit_hum <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, 
                              vgm(psill = 30, "Lin", 15, nugget=10))#, anis = c(0, 0.9)))
 plot(variograma, dat_fit_hum)
@@ -356,7 +356,7 @@ r <- raster(dar_krg, layer = "var1.pred" )
 r.m <- mask(r, dep_grilla)
 
 tm_shape(r.m) +
-  tm_raster(n = 10, palette = "magma") +
+  tm_raster(n = 15, palette = "magma") +
   tm_shape(h_var) + tm_dots(size = .1) +
   tm_legend(legend.outside = TRUE)+ tm_layout(title = "Kriging de Humedad")
 
@@ -442,12 +442,10 @@ if (require(ggplot2, quietly=TRUE)) {
 
 t_var <- smn_temp_h_group %>% dplyr::select(temp.med, x,y)
 coordinates(t_var) <-~y+x
-variograma <-variogram(temp.med ~y, t_var)
+variograma <-variogram(temp.med ~ y, t_var, width  = 1.2)
 
-loadfonts(device = "win")
-windowsFonts()
 ggplot(variograma, aes(x = dist, y = gamma)) +
-  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 20) +
+  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 12) +
   labs(title = expression("Variograma empírico de Temperaturas"), 
        x = "distancia", y = "semivarianza")+  
   theme_classic()+theme(text = element_text(family = "Arial"),
@@ -474,8 +472,8 @@ ggplot(variograma_nube, aes(x = dist, y = gamma)) +
 
 ### Análisis de isotropía
 
-v2 <- variogram(temp.med ~y, t_var,cutoff=30, width=5,  map = T)
-v2_sintendencia <- variogram(temp.med ~1, t_var,cutoff=30, width=5,  map = T)
+v2 <- variogram(temp.med ~y, t_var,cutoff=30, width=1.2,  map = T)
+v2_sintendencia <- variogram(temp.med ~1, t_var,cutoff=30, width=1.2  ,map = T)
 # Que sea todo del mismo color me dice que el proceso es isotrópico porque solo mira la magnitud,
 # no si es algo de norte a sur, etc Porque el mapa me dice que me muevo de norte a sur y no hay cambios debido a eso.
 plot(v2)
@@ -505,9 +503,9 @@ ggplot(v2.dir, aes(x = dist, y = gamma, colour = direction)) +
                         axis.title = element_text(size = 13, face = "bold"))
 
 
-variograma <- variogram(temp.med~y, t_var, alpha = c(90,90))
+variograma <- variogram(temp.med~y, t_var, width = 1.2)
 dat_fit_tem <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, 
-                             vgm(psill = 8, "Lin", 13,nugget=0))#, anis = c(0, 0.9)))
+                             vgm(psill = 5.5, "Exp", 9,nugget=0.2))#, anis = c(0, 0.9)))
 plot(variograma, dat_fit_tem)
 
 # KRIGGING
@@ -521,7 +519,7 @@ r <- raster(dar_krg, layer = "var1.pred" )
 r.m <- mask(r, dep_grilla)
 
 tm_shape(r.m) +
-  tm_raster(n = 10, palette = wes_palette("Zissou1")) +
+  tm_raster(n = 15, palette = wes_palette("Zissou1")) +
   tm_shape(t_var) + tm_dots(size = .1) +
   tm_legend(legend.outside = TRUE)+ tm_layout(title = "Kriging de Temperatura")
 
