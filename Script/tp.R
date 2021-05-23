@@ -46,7 +46,7 @@ grafico2
 summary(smn)
 colnames(smn)
 #Cambio este nombre para que se lea mejor
-smn <- smn %>% rename(Estacion =NOMBRE) 
+smn <- smn %>% rename(Estacion =ï..NOMBRE) 
 summary(smn$Provincia)
 describe(smn)
 
@@ -442,22 +442,29 @@ ggplot(variograma, aes(x = dist, y = gamma)) +
                         axis.title = element_text(size = 11, face = "bold"))
 
 #vemos toda la nube
-variograma_nube <- variogram(HUM.med~1, h_var, cloud =TRUE)
-plot(variograma_nube, main= "Variograma nube de Humedad")
 
-dat_fit_hum <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=200,model ="Lin", nugget =1,range=20))
-plot(variograma, dat_fit_hum)
+variograma_nube <- variogram(HUM.med~1, h_var, cloud =TRUE)
+ggplot(variograma_nube, aes(x = dist, y = gamma)) +
+  geom_point(colour = tayloRswift::swift_palettes$lover[4], size = 2.5) + ylim(0, 3) +
+  labs(title = expression("Variograma nube de Cressie de Humedad"), 
+       x = "distancia", y = "semivarianza")+  
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 18, family = "Arial", face = 'bold'), 
+                        axis.text.y = element_text(size = 18, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 22, face = "bold"),
+                        axis.title = element_text(size = 22, face = "bold"))
 
 ### Análisis de isotropía
 
-#Que no sea todo del mismo color me indica que no habría isotropía en la data.
-v1 <- variogram(HUM.med ~1, h_var,cutoff=50, width=5,  map = T)
+#Que no sea todo del mismo color me indica que habría isotropía en la data.
+v1 <- variogram(HUM.med ~1, h_var,cutoff=30, width=5,  map = T)
 plot(v1)
 
 #Lo miro ahora en las cuatro direcciones posibles
 v.dir <-variogram(HUM.med ~1, h_var,alpha = (0:3) * 45)
-v.anis <- vgm(psill = 140, "Lin", 20, anis = c(45, 0.3),nugget=50)
-plot(v.dir, v.anis)
+v.anis <- vgm(psill = 210, "Lin", 15, anis = c(0, 0.9),nugget=1)
+plot(v.dir, v.anis, main = "Variogramas - Teóricos Humedad")
 
 v.dir$direction <- factor(v.dir$dir.hor, levels = c(0, 45, 90, 135),
                           labels = c("E-O", "NE-SO", "N-S", "NO-SE"))
@@ -477,6 +484,10 @@ ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) +
                         axis.line = element_line(colour = "black"),plot.title = element_text(size = 25, face = "bold"),
                         axis.title = element_text(size = 20, face = "bold"))
 
+variograma <- variogram(HUM.med ~1, h_var, alpha = c(0,0))
+dat_fit_hum <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, 
+                             vgm(psill = 90, "Lin", 15, nugget=1))#, anis = c(0, 0.9)))
+plot(variograma, dat_fit_hum)
 
 # KRIGGING
 
@@ -497,19 +508,16 @@ fullgrid(grilla) <- TRUE
 proj4string(grilla) <- proj4string(dep_grilla)
 proj4string(h_var) <- proj4string(dep_grilla)
 
-dar_krg <- krige(HUM.med ~ 1,h_var,grilla, model = dat_fit_hum, nmax = 20)
+dar_krg <- krige(HUM.med ~ 1,h_var,grilla, model = dat_fit_hum, nmax = 19)
 summary(dar_krg$var1.pred)
 
 r <- raster(dar_krg, layer = "var1.pred" )
 r.m <- mask(r, dep_grilla)
 
-plot(r.m)
-
 tm_shape(r.m) +
-  tm_raster(n = 10, palette = wes_palette("Cavalcanti1")) +
+  tm_raster(n = 10, palette = wes_palette("IsleofDogs1")) +
   tm_shape(h_var) + tm_dots(size = .1) +
-  tm_legend(legend.outside = TRUE)
-
+  tm_legend(legend.outside = TRUE)+ tm_layout(title = "Kriging de Humedad")
 
 
                             ## ******* TEMPERATURA ******* ##
@@ -628,34 +636,27 @@ ggplot(variograma, aes(x = dist, y = gamma)) +
 
 #vemos toda la nube
 variograma_nube <- variogram(TEMP.med~1, t_var, cloud =TRUE)
-ggplot(variograma, aes(x = dist, y = gamma)) +
-  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 20) +
-  labs(title = expression("Variograma empírico de Temperaturas"), 
+ggplot(variograma_nube, aes(x = dist, y = gamma)) +
+  geom_point(colour = tayloRswift::swift_palettes$evermore[4], size = 2.5) + ylim(0, 3) +
+  labs(title = expression("Variograma nube de Cressie de Temperatura"), 
        x = "distancia", y = "semivarianza")+  
   theme_classic()+theme(text = element_text(family = "Arial"),
-                        axis.title.x =   element_blank(),
-                        axis.title.y = element_blank(),
                         panel.grid.major = element_blank(),
-                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 11, family = "Arial", face = 'bold'), 
-                        axis.text.y = element_text(size = 11, family = "Arial", face = 'bold'), 
-                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
-                        axis.title = element_text(size = 11, face = "bold"))
-
-plot(variograma_nube, main= "Variograma nube de Temperatura")
-
-dat_fit_tem <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, vgm(psill=20, model ="Lin", nugget =0,range=20))
-plot(variograma, dat_fit_tem, main = "Variograma Teórico de Temperatura")
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 18, family = "Arial", face = 'bold'), 
+                        axis.text.y = element_text(size = 18, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 22, face = "bold"),
+                        axis.title = element_text(size = 22, face = "bold"))
 
 ### Análisis de isotropía
 
-v2 <- variogram(TEMP.med ~1, t_var,cutoff=50, width=5,  map = T)
+v2 <- variogram(TEMP.med ~1, t_var,cutoff=30, width=5,  map = T)
 # Que sea todo del mismo color me dice que el proceso es isotrópico porque solo mira la magnitud,
 # no si es algo de norte a sur, etc Porque el mapa me dice que me muevo de norte a sur y no hay cambios debido a eso.
 plot(v2)
 
 v2.dir <-variogram(TEMP.med~1, t_var,alpha = (0:3) * 45)
-v2.anis <- vgm(psill = 20, "Lin", 20, anis = c(45, 0.3),nugget=25)
-plot(v2.dir, v2.anis)
+v2.anis <- vgm(psill = 20, "Lin", 13, anis = c(90, 0.9),nugget=0)
+plot(v2.dir, v2.anis, main = "Variogramas - Teóricos Temperatura")
 
 v2.dir$direction <- factor(v2.dir$dir.hor, levels = c(0, 45, 90, 135),
                           labels = c("E-O", "NE-SO", "N-S", "NO-SE"))
@@ -666,7 +667,7 @@ ggplot(v2.dir, aes(x = dist, y = gamma, colour = direction)) +
   geom_point(size = 1.8) + 
   labs(title = expression("Variograma direccional Temperatura"), 
        x = "distancia", y = "semivariance", colour = "dirección") + geom_line(size=1.5)+
-  scale_color_manual(values=wes_palette("Cavalcanti1"))+
+  scale_color_manual(values=tayloRswift::swift_palettes$taylor1989)+
   theme_classic()+theme(text = element_text(family = "Arial"),
                         legend.title = element_text(size = 20),
                         legend.text = element_text(size = 20),
@@ -677,42 +678,23 @@ ggplot(v2.dir, aes(x = dist, y = gamma, colour = direction)) +
                         axis.title = element_text(size = 20, face = "bold"))
 
 
+variograma <- variogram(TEMP.med~1, t_var, alpha = c(90,90))
+dat_fit_tem <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, 
+                             vgm(psill = 20, "Lin", 13,nugget=0))#, anis = c(0, 0.9)))
+plot(variograma, dat_fit_tem)
+
 # KRIGGING
 
 proj4string(t_var) <- proj4string(dep_grilla)
 
-dar_krg <- krige(TEMP.med ~ 1,t_var,grilla, model = dat_fit_tem, nmax = 5)
+dar_krg <- krige(TEMP.med ~ 1,t_var,grilla, model = dat_fit_tem, nmax = 25)
 summary(dar_krg$var1.pred)
 
 r <- raster(dar_krg, layer = "var1.pred" )
 r.m <- mask(r, dep_grilla)
-plot(r.m)
 
 tm_shape(r.m) +
-  tm_raster(n = 10, palette = wes_palette("Moonrise3")) +
-  tm_shape(d_var) + tm_dots(size = .1) +
-  tm_legend(legend.outside = TRUE)
+  tm_raster(n = 10, palette = wes_palette("Zissou1")) +
+  tm_shape(t_var) + tm_dots(size = .1) +
+  tm_legend(legend.outside = TRUE)+ tm_layout(title = "Kriging de Temperatura")
 
-####
-#Normalized
-
-t_var_n <- smn_temp_h_group %>% dplyr::select(TEMP.med, x,y)
-t_var_n$TEMP.norm <- (t_var_n$TEMP.med - mean(t_var_n$TEMP.med))/sd(t_var_n$TEMP.med)
-t_var_n <- t_var_n %>% dplyr::select(TEMP.norm, x,y)
-coordinates(t_var_n) <-~y+x
-variograma <-variogram(TEMP.norm ~1, t_var_n)
-
-loadfonts(device = "win")
-windowsFonts()
-ggplot(variograma, aes(x = dist, y = gamma)) +
-  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 1.5) +
-  labs(title = expression("Variograma empírico de Temperaturas"), 
-       x = "distancia", y = "semivarianza")+  
-  theme_classic()+theme(text = element_text(family = "Arial"),
-                        axis.title.x =   element_blank(),
-                        axis.title.y = element_blank(),
-                        panel.grid.major = element_blank(),
-                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 11, family = "Arial", face = 'bold'), 
-                        axis.text.y = element_text(size = 11, family = "Arial", face = 'bold'), 
-                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
-                        axis.title = element_text(size = 11, face = "bold"))
