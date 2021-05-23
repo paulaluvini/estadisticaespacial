@@ -20,8 +20,6 @@ library(car)
 departamentos <- st_read("Datos/Codgeo_Pais_x_dpto_con_datos/pxdptodatosok.shp")
 smn <- read.csv(file = 'Datos/estaciones_smn.csv', sep = ";")
 temperaturas <- read.csv(file = 'Datos/temperaturas.csv')
-#temperaturas<- read.csv(file = 'Datos/temperatura_historico.csv')
-
 datoshorarios <- read.csv(file = 'Datos/datoshorarios.csv')
 humedad_historico <- read.csv(file = 'Datos/humedad_historico.csv')
 temperatura_historico <- read.csv(file = 'Datos/temperatura_historico.csv')
@@ -46,7 +44,7 @@ grafico2
 summary(smn)
 colnames(smn)
 #Cambio este nombre para que se lea mejor
-smn <- smn %>% rename(Estacion =ï..NOMBRE) 
+smn <- smn %>% rename(Estacion =NOMBRE) 
 summary(smn$Provincia)
 describe(smn)
 
@@ -74,9 +72,7 @@ ggplot() + geom_sf(data = departamentos_ba,fill = c('seashell'), color = "slateg
   theme_classic() +geom_text(data= smn_ba, aes(x,y, label = Estacion), size = 2, fontface = "bold",vjust = -0.5)+
   ggtitle("Estaciones Meteorológicas", subtitle = "Provincia de Buenos Aires") + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank())
 
- # theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed", 
-                                       # size = 0.5), panel.background = element_rect(fill = "aliceblue"))
-
+ 
 #Los de los partidos del Conurbano + CABA no se leen muy bien así que hago un mapa sólo con ellos.
 departamentos_amba <- departamentos %>% filter(provincia == "Buenos Aires" | provincia =="Ciudad Autónoma de Buenos Aires")
 smn_amba <- smn %>% filter(Provincia == "BUENOS AIRES" | Provincia == "CAPITAL FEDERAL")
@@ -95,12 +91,12 @@ ggplot() + geom_sf(data = departamentos_amba,fill = c('seashell'), color = "slat
   geom_point(data = smn_amba, aes(x=x, y=y),colour = "dodgerblue1", size = 3)+ theme_classic() +
   geom_text(data= smn_amba, aes(x,y, label = Estacion), size = 2, fontface = "bold", vjust = -0.5)+
   ggtitle("Estaciones Meteorológicas", subtitle = "Area Metropolitana") + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank())
-grafico2
-  #theme(panel.grid.major = element_line(color = gray(0.5), linetype = "dashed",size = 0.5),
-    #    panel.background = element_rect(fill = "aliceblue"))
 
-########################################################################################
-#DATOS DIARIOS
+
+
+#####################################
+##########DATOS DIARIOS##########
+#################################
 
 # TEMPERATURAS
 # Miro el dataset de temperaturas datos diarios
@@ -109,7 +105,7 @@ head(temperaturas)
 temperaturas <- temperaturas %>% rename(Estacion = NOMBRE) 
 dim(temperaturas)[1]
 colnames(temperaturas)
-sort(unique(temperaturas$FECHA))
+
 
 #Me quedo solo con 2020. Para no tener problemas de estacionalidad, si me quedo con 
 #2 meses de enero dado que tengo 2020 y 2021 estaria teniendo temperaturas sesgadas.
@@ -184,24 +180,13 @@ temperatura_historico <- temperatura_historico %>% gather(Mes, temp, Enero:Dicie
 smn_temperatura_h <- merge(x = temperatura_historico, y = smn, by = "Estacion", all.x = TRUE)
 smn_temperatura_h <- smn_temperatura_h %>% filter(!is.na(x) & !is.na(y) & !is.na(temp))
 
-#hago un analisis de la humedad historica. Veo que tiene una cola bastante pronunciada hacia la derecha, hay mas valores de humedad por encima del 60%.
-ggplot() + geom_histogram(data=smn_temperatura_h, aes(x= temp)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
-  ggtitle("Histograma de temperatura histórico") + labs(x= "Temperatura") +theme(text = element_text(family = "JP1"),
-                                                                                 panel.grid.major = element_blank(),
-                                                                                 panel.grid.minor = element_blank(), axis.text.x = element_text(size = 10, family ="JP1", face = 'bold'), 
-                                                                                 axis.text.y = element_text(size = 10, family = "JP1", face = 'bold'), 
-                                                                                 axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
-                                                                                 axis.title = element_text(size = 11, face = "bold"))
 
-#Los datos no son normales, estan bastante sesgados a la cola derecha
-qqnorm(smn_temperatura_h$temp)
-qqline(smn_temperatura_h$temp)
 
 #Test de Kolmogorov-Smirnov.
 normal1 <- rnorm(length(smn_temperatura_h$temp), mean(smn_temperatura_h$temp), sd(smn_temperatura_h$temp))
 ks.test(smn_temperatura_h$temp, normal1)
 
-
+##check this
 par(mfrow=c(1,1))
 plot(temp_max,pch = 15 ,cex = 1)
 
@@ -223,13 +208,13 @@ plot(temp_sf_h, main = "Temperatura media histórica")
 
 
 ##Para testear normalidad 
-n=5000
+n=5000 #numero de repeticiones
 m=5000
 pvalue1 <- vector(length=n)
 pvalue2 <- vector(length=n)
 wvalue1 <- vector(length=n)
 wvalue2 <- vector(length =n)
-
+#subsampleo porque el test no permite testear más de 5000 observaciones
 #Test de Shapiro
 for (i in 1:n){
   pvalue1[i] <- shapiro.test(sample(temp_max$TMAX, m))$p.value
@@ -255,13 +240,12 @@ ks.test(temp_max$TMAX, normal1)
 ks.test(smn_temp_sina$TMAX, normal2)
 ks.test(smn_temperatura_h$temp, normal3)
 
-par(mfrow=c(1,1))
-plot(temp_max,pch = 15 ,cex = 1)
+
 
 #hago un analisis de la temperatura minima
 ggplot() + geom_histogram(data=temp_min, aes(x= TMIN)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
   ggtitle("Histograma de temperatura mediana") + labs(x= "temperatura máxima")
-qqnorm(temp_min$TMIN)
+
 
 
 #Vemos que tenemos más observaciones con temperaturas maximas entre 20 y 30 grados centigrados
@@ -300,23 +284,16 @@ moran.test(temp_max_group$TMAX.med, pesos_grilla)
 
 
 ########################################################################################
-###################################  DATOS HISTORICOS  #################################
+###################################  DATOS HISTORICOS HUMEDAD #########################
 ########################################################################################
 
-############################### ******* HUMEDAD ******* ################################
+
 
 humedad_historico <- humedad_historico %>% gather(Mes, HUM, Enero:Diciembre)
 smn_humedad_h <- merge(x = humedad_historico, y = smn, by = "Estacion", all.x = TRUE)
 smn_humedad_h <- smn_humedad_h %>% filter(!is.na(x) & !is.na(y) & !is.na(HUM))
 
 #hago un analisis de la humedad historica. Veo que tiene una cola bastante pronunciada hacia la derecha, hay mas valores de humedad por encima del 60%.
-ggplot() + geom_histogram(data=smn_humedad_h, aes(x= HUM)) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(panel.background = element_blank()) +
-  ggtitle("Histograma de humedad histórico") + labs(x= "Humedad") +theme(text = element_text(family = "JP1"),
-                                                                         panel.grid.major = element_blank(),
-                                                                         panel.grid.minor = element_blank(), axis.text.x = element_text(size = 10, family ="JP1", face = 'bold'), 
-                                                                         axis.text.y = element_text(size = 10, family = "JP1", face = 'bold'), 
-                                                                         axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
-                                                                         axis.title = element_text(size = 11, face = "bold"))
 
 #Los datos no son normales, estan bastante sesgados a la cola derecha
 qqnorm(smn_humedad_h$HUM)
