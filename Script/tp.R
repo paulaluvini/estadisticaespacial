@@ -23,6 +23,7 @@ temperaturas <- read.csv(file = 'Datos/temperaturas.csv')
 datoshorarios <- read.csv(file = 'Datos/datoshorarios.csv')
 humedad_historico <- read.csv(file = 'Datos/humedad_historico.csv')
 temperatura_historico <- read.csv(file = 'Datos/temperatura_historico.csv')
+campos <- read_excel("Datos/precio campos.xlsx")
 
 ########################################################################################
 ################################  ANALISIS EXPLORATORIO  ###############################
@@ -44,7 +45,7 @@ grafico2
 summary(smn)
 colnames(smn)
 #Cambio este nombre para que se lea mejor
-smn <- smn %>% rename(Estacion =ï..NOMBRE) 
+smn <- smn %>% rename(Estacion = NOMBRE) 
 summary(smn$Provincia)
 describe(smn)
 
@@ -61,11 +62,14 @@ smn$x <- smn$Longitud.gr.-smn$minutos_longitud
 smn$y <- smn$Latitud.gr.-smn$minutos_latitud
 head(smn)
 
+#Veo las estaciones en el mapa
+
 ggplot() + geom_sf(data = departamentos,fill = c('seashell'), color = "slategray",size = 0.50) + geom_point(data = smn, aes(x=x, y=y),
                                                       colour = "royalblue1", size = 1)+ theme_classic()
 
 departamentos_ba <- departamentos %>% filter(provincia == "Buenos Aires")
 smn_ba <- smn %>% filter(Provincia == "BUENOS AIRES")
+#Veo las estaciones en el mapa de la provincia de Buenos Aires
 
 ggplot() + geom_sf(data = departamentos_ba,fill = c('seashell'), color = "slategray") + 
   geom_point(data = smn_ba, aes(x=x, y=y),colour = "royalblue1", size = 2)+ 
@@ -100,54 +104,65 @@ ggplot() + geom_sf(data = departamentos_amba,fill = c('seashell'), color = "slat
 
 temperatura_historico <- temperatura_historico %>% gather(Mes, temp, Enero:Diciembre)
 smn_temperatura_h <- merge(x = temperatura_historico, y = smn, by = "Estacion", all.x = TRUE)
-smn_temperatura_h <- smn_temperatura_h %>% filter(!is.na(x) & !is.na(y) & !is.na(temp))
 
+smn_temperatura_h <- smn_temperatura_h %>% filter(!is.na(x) & !is.na(y) & !is.na(temp)) #filtro NA
+
+
+colnames(smn_temperatura_h)
+smn_temperatura_h <- smn_temperatura_h[,c(14,15,3,1)]
+
+#Transformo los datos a geodata
+temp_geodata <- as.geodata(smn_temperatura_h)
+class(temp_geodata)
+
+#Análisis descriptivo
+#Aca vemos que en una tendencia en las coordenadas y.
+#Vemos que tenemos más observaciones con temperaturas maximas entre 20 y 30 grados centigrados
+# Hay una clara tendencia mirando la latitud, lo que hace sentido en Argentina por tener 
+# mayor variación climática de norte a sur que de este a oeste.
+
+plot(temp_geodata)
+
+#Acá cambios los datos de data frame a sf
+temp_sf_h <- (smn_temperatura_h)%>% dplyr::select(x,y,temp) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
+class(temp_sf_h)
+
+#En detalle vemos la distribución de la temperatura. En concordancia, vemos mayores temperaturas al norte que al sur.
+options(sf_max.plot=1)
+plot(temp_sf_h, main = "Temperatura media histórica")
+
+#Analizo normalidad 
+#QQplot
+qqPlot(smn_temperatura_h$temp, ylab="Temperatura", main = "QQPlot Temperatura",col.lines = "indianred", grid= FALSE)
 
 
 #Test de Kolmogorov-Smirnov.
 normal1 <- rnorm(length(smn_temperatura_h$temp), mean(smn_temperatura_h$temp), sd(smn_temperatura_h$temp))
 ks.test(smn_temperatura_h$temp, normal1)
 
-
-
-colnames(smn_temperatura_h)
-smn_temperatura_h <- smn_temperatura_h[,c(14,15,3,1)]
-temp_geodata <- as.geodata(smn_temperatura_h)
-class(temp_geodata)
-
-temp_geodata
-#Aca vemos que en una tendencia en las coordenadas y.
-plot(temp_geodata)
-
-temp_sf_h <- (smn_temperatura_h)%>% dplyr::select(x,y,temp) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
-
-#En detalle vemos la distribución de humedad. La mayor parte del país corresponde a puntos de humedad entre un 60% y 70%.
-#Algunas regiones destacan por tener valores muy altos de humedad, como es Iguazú. Los valores más bajos son algunas zonas de la Patagonia y de Cuyo.
-options(sf_max.plot=1)
-plot(temp_sf_h, main = "Temperatura media histórica")
-
-#Vemos que tenemos más observaciones con temperaturas maximas entre 20 y 30 grados centigrados
-# Hay una clara tendencia mirando la latitud, lo que hace sentido en Argentina por tener 
-# mayor variación climática de norte a sur que de este a oeste.
-
-#para testear normalidad
 #test de shapiro
-shapiro_hist <- shapiro.test(smn_temperatura_h$temp)
+shapiro.test(smn_temperatura_h$temp)
 
 
-pvalue3 <- shapiro_hist$p.value
-wvalue3 <- shapiro_hist$statistic
+#Pruebo dos transformaciones
+
+#normalizar datos
+transformacion1 <- smn_temperatura_h
+transformacion1$temp <- (transformacion1$temp- mean(transformacion1$temp))/var(transformacion1$temp)
 
 
+normal2<- rnorm(length(transformacion1$temp), mean(transformacion1$temp), sd(transformacion1$temp))
+ks.test(transformacion1$temp, normal2)
+shapiro.test(transformacion1$temp)
 
+#log transformacion
+transformacion2 <- smn_temperatura_h
+#desplazo para no tener indefinido del log de 0
+transformacion2$temp <- log(transformacion2$temp +min(transformacion2$temp)*-1 + 0.1)
 
-
-
-
-
-
-
-
+normal3 <- rnorm(length(transformacion2$temp), mean(transformacion2$temp), sd(transformacion2$temp))
+ks.test(transformacion2$temp, normal3)
+shapiro.test(transformacion2$temp)
 
 
 ########################################################################################
@@ -161,22 +176,17 @@ smn_humedad_h <- merge(x = humedad_historico, y = smn, by = "Estacion", all.x = 
 smn_humedad_h <- smn_humedad_h %>% filter(!is.na(x) & !is.na(y) & !is.na(HUM))
 
 
-
-#Test de Kolmogorov-Smirnov.
-normal1 <- rnorm(length(smn_humedad_h$HUM), mean(smn_humedad_h$HUM), sd(smn_humedad_h$HUM))
-ks.test(smn_humedad_h$HUM, normal1)
-
-
-
-
 colnames(smn_humedad_h)
 smn_humedad_h <- smn_humedad_h[,c(14,15,3,1)]
+#Transformo a geodata
 hum_geodata <- as.geodata(smn_humedad_h)
 class(hum_geodata)
 #Aca vemos que en la humedad no hay diferencias tan marcadas en regiones de país como en el caso de temperaturas.
 #No se ve una tendencia en las coordenadas y.
+
 plot(hum_geodata)
 hum_sf_h <- (smn_humedad_h)%>% dplyr::select(x,y,HUM) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
+
 
 #En detalle vemos la distribución de humedad. La mayor parte del país corresponde a puntos de humedad entre un 60% y 70%.
 #Algunas regiones destacan por tener valores muy altos de humedad, como es Iguazú. Los valores más bajos son algunas zonas de la Patagonia y de Cuyo.
@@ -184,7 +194,35 @@ options(sf_max.plot=1)
 plot(hum_sf_h,breaks = c(0,10,20,30,40,50,60,70,80,90,100),pch =15 ,cex = 1, main = "Humedad histórica")
 
 
+#Analisis de normalidad 
+qqPlot(smn_humedad_h$HUM, ylab = "Humedad", main = "QQPlot Histograma",col.lines="indianred", grid= FALSE)
+#Test de Kolmogorov-Smirnov.
+normal1 <- rnorm(length(smn_humedad_h$HUM), mean(smn_humedad_h$HUM), sd(smn_humedad_h$HUM))
+ks.test(smn_humedad_h$HUM, normal1)
 
+#Test de Shapiro 
+shapiro.test(smn_humedad_h$HUM)
+normal3 <- rnorm(length(smn_humedad_h$HUM), mean(smn_humedad_h$HUM), sd(smn_humedad_h$HUM))
+ks.test(smn_humedad_h$HUM, normal3)
+
+
+#transformaciones 
+#normalizar datos 
+transformacion1 <- smn_humedad_h
+transformacion1$HUM <- (transformacion1$HUM - mean(transformacion1$HUM))/var(tranformacion1$HUM)
+normal4 <- rnorm(length(transformacion1$HUM), mean(transformacion1$HUM), sd(smn_humedad_h$HUM))
+ks.test(transformacion1$HUM, normal4)
+shapiro.test(transformacion1$HUM)
+
+#log transformación 
+transformacion2 <- smn_humedad_h
+transformacion2$HUM  <- log(transformacion2$HUM) 
+normal5 <- rnorm(length(transformacion2$HUM), mean(transformacion2$HUM), sd(transformacion2$HUM))
+ks.test(transformacion2$HUM, normal5)
+shapiro.test(transformacion2$HUM)
+
+
+#preparo para presentación
 par(mfrow=c(2,2))
 
 qqPlot(smn_temperatura_h$temp, ylab="Temperatura", main = "QQPlot Temperatura",col.lines = "indianred", grid= FALSE)
@@ -199,9 +237,7 @@ hist(smn_humedad_h$HUM, xlab = "Temperatura máxima",col="gray20", main="Histogra
 lines(density(smn_humedad_h$HUM),lwd=4, col="indianred")
 
 
-shapiro.test(smn_humedad_h$HUM)
-normal3 <- rnorm(length(smn_humedad_h$HUM), mean(smn_humedad_h$HUM), sd(smn_humedad_h$HUM))
-ks.test(smn_humedad_h$HUM, normal3)
+
 
 par(mfrow=c(1,1))
 # AUTOCORRELACION ESPACIAL
@@ -286,14 +322,14 @@ ggplot(variograma, aes(x = dist, y = gamma)) +
 
 variograma_nube <- variogram(HUM.med~x, h_var, cloud =TRUE)
 ggplot(variograma_nube, aes(x = dist, y = gamma)) +
-  geom_point(colour = tayloRswift::swift_palettes$lover[4], size = 2.5) + ylim(0, 3) +
-  labs(title = expression("Variograma nube de Cressie de Humedad"), 
+  geom_point(colour = tayloRswift::swift_palettes$lover[4], size = 2) + ylim(0, 3) +
+  labs(title = expression("Variograma nube de Humedad"), 
        x = "distancia", y = "semivarianza")+  
   theme_classic()+theme(text = element_text(family = "Arial"),
                         panel.grid.major = element_blank(),
-                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 18, family = "Arial", face = 'bold'), 
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 15, family = "Arial", face = 'bold'), 
                         axis.text.y = element_text(size = 10, family = "Arial", face = 'bold'), 
-                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 22, face = "bold"),
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 15, face = "bold"),
                         axis.title = element_text(size = 15, face = "bold"))
 
 ### Análisis de isotropía
@@ -301,15 +337,17 @@ ggplot(variograma_nube, aes(x = dist, y = gamma)) +
 #Que no sea todo del mismo color me indica que habría isotropía en la data.
 v1 <- variogram(HUM.med ~x, h_var,cutoff=30, width=1.2,  map = T)
 plot(v1)
-
+v1_sin_tendencia<- variogram(HUM.med~1, h_var,cutoff=30, width=1.2,  map = T)
+plot(v1_sin_tendencia)
+par(mfrow=c(2,2))
 #Lo miro ahora en las cuatro direcciones posibles
 v.dir <-variogram(HUM.med ~x, h_var,alpha = (0:3) * 45,width=1.2)
-v.anis <- vgm(psill = 40, "Lin", 15, anis = c(0, 0.9),nugget=5)
+v.anis <- vgm(psill = 30, "Sph", 12, anis = c(0, 0.9),nugget=4)
 plot(v.dir, v.anis, main = "Variogramas - Teóricos Humedad")
 
 v.dir$direction <- factor(v.dir$dir.hor, levels = c(0, 45, 90, 135),
                           labels = c("E-O", "NE-SO", "N-S", "NO-SE"))
-
+par(mfrow=c(1,1))
 #Vemos que dentro de todo los variogramas empíricos no son tan distintos entre sí. El más distinto, tanto en comportamiento como en dirección es el de la dirección Norte-Sur.
 ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) + 
   geom_point(size = 1.8) + 
@@ -460,15 +498,15 @@ ggplot(variograma, aes(x = dist, y = gamma)) +
 #vemos toda la nube
 variograma_nube <- variogram(temp.med~y, t_var, cloud =TRUE)
 ggplot(variograma_nube, aes(x = dist, y = gamma)) +
-  geom_point(colour = tayloRswift::swift_palettes$evermore[4], size = 2.5) + ylim(0, 3) +
-  labs(title = expression("Variograma nube de Cressie de Temperatura"), 
+  geom_point(colour = tayloRswift::swift_palettes$evermore[4], size = 2) + ylim(0, 3) +
+  labs(title = expression("Variograma nube de Temperatura"), 
        x = "distancia", y = "semivarianza")+  
   theme_classic()+theme(text = element_text(family = "Arial"),
                         panel.grid.major = element_blank(),
-                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 18, family = "Arial", face = 'bold'), 
-                        axis.text.y = element_text(size = 18, family = "Arial", face = 'bold'), 
-                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 22, face = "bold"),
-                        axis.title = element_text(size = 22, face = "bold"))
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 15, family = "Arial", face = 'bold'), 
+                        axis.text.y = element_text(size = 15, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 15, face = "bold"),
+                        axis.title = element_text(size = 15, face = "bold"))
 
 ### Análisis de isotropía
 
@@ -522,4 +560,10 @@ tm_shape(r.m) +
   tm_raster(n = 15, palette = wes_palette("Zissou1")) +
   tm_shape(t_var) + tm_dots(size = .1) +
   tm_legend(legend.outside = TRUE)+ tm_layout(title = "Kriging de Temperatura")
+
+#######Precios de campo
+colnames(campos) <- c("names", "descripcion","x","y", "price1", "price2")
+#camposb<- (campos)%>% dplyr::select(x,y,price1) %>% st_as_sf(coords =c("x", "y"), crs= 4326)
+ggplot() + geom_sf(data = departamentos,fill = c('seashell'), color = "slategray",size = 0.50) + geom_point(data = campos, aes(x=x, y=y),
+                                                                                                            colour = "royalblue1", size = 1)+ theme_classic()
 
