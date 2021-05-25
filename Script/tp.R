@@ -831,14 +831,7 @@ par(mfrow=c(1,1))
 
 m = glm(precio.r[]~temperatura.r[]+humedad.r[])
 summary(m)
-library(kernlab)      # SVM methodology
-library(e1071)        # SVM methodology
-library(ISLR) 
 
-svmfit = svm(precio.r[] ~ mergeado.r[], kernel = "radial", cost = 10, scale = FALSE)
-y_predR = predict(svmfit, newdata = c(temperatura.r[],humedad.r[]))
-
-summary(svmfit)
 
 
 #new_data <- raster::merge(r1, r2,r3, tolerance = 0.5)
