@@ -721,7 +721,7 @@ ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) +
 
 variograma <- variogram(precio ~1, c_var, alpha = c(45,45),width=1.2,cutoff = 13)
 dat_fit_hum <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, 
-                             vgm(psill = 30, "Lin", 15, nugget=10))#, anis = c(0, 0.9)))
+                             vgm(psill = 1000000, "Sph", 15, nugget=4000000))#, anis = c(0, 0.9)))
 plot(variograma, dat_fit_hum)
 
 # KRIGGING
@@ -754,4 +754,28 @@ tm_shape(r.m) +
   tm_shape(c_var) + tm_dots(size = .1) +
   tm_legend(legend.outside = TRUE)+ tm_layout(title = "Kriging de Precios")
 
+
+
+library(raster)
+library(rgdal) 
+
+
+
+#list all raster files, im asuming they are tif files, change if needed
+ #be careful if you have lots of data...!
+ver <- as.data.frame(r)
+ver[is.na(ver),]<- 0
+cluster.ICE <- kmeans(ver, 10) ### kmeans, with 4 clusters
+
+clusters <- raster(r)
+## create an empty raster with same extent than ICE
+clusters <- setValues(clusters, cluster.ICE$cluster) 
+clusters
+cluster.m <- mask(clusters, dep_grilla)
+plot(cluster.m)
+
+r.mean <- zonal(r, clusters, fun="mean")  
+r.min <- zonal(r, clusters, fun="min")
+r.max <- zonal(r, clusters, fun="max")
+r.sum <- zonal(r, clusters, fun="sum")
 
