@@ -427,7 +427,7 @@ plot(cluster.m1)
 
 cluster.temp
 
-
+humedad.r<-r
 
 ## ******* TEMPERATURA ******* ##
 
@@ -605,7 +605,7 @@ clusters
 cluster.m2 <- mask(clusters, dep_grilla)
 plot(cluster.m2)
 cluster.hum
-
+temperatura.r<- r
 ####################################
 ####### Precios de campo ##########
 ###################################
@@ -825,6 +825,39 @@ plot(cluster.m, main="cluster precios")
 cluster.precio$centers
 cluster.hum$centers
 cluster.temp$centers
+precio.r <- r
+
+par(mfrow=c(1,1))
+
+m = glm(precio.r[]~temperatura.r[]+humedad.r[])
+summary(m)
+library(kernlab)      # SVM methodology
+library(e1071)        # SVM methodology
+library(ISLR) 
+
+svmfit = svm(precio.r[] ~ mergeado.r[], kernel = "radial", cost = 10, scale = FALSE)
+y_predR = predict(svmfit, newdata = c(temperatura.r[],humedad.r[]))
+
+summary(svmfit)
+
+
+#new_data <- raster::merge(r1, r2,r3, tolerance = 0.5)
+
+#head(new_data)
+#ver <- as.data.frame(new_data)
+#ver[is.na(ver),]<- 0
+
+#wssplot(ver,nc=20)
+#cluster.todos <- kmeans(ver, 8) ### kmeans, with 4 clusters
+
+#clusters <- raster(new_data)
+## create an empty raster with same extent than ICE
+#clusters <- setValues(clusters, cluster.todos$cluster) 
+#clusters
+#cluster.m4 <- mask(clusters, dep_grilla)
+#plot(cluster.m4)
+
+
 
 ####Producciones de cultivo
 
