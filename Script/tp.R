@@ -400,6 +400,32 @@ tm_shape(r.m) +
   tm_legend(legend.outside = TRUE)+ tm_layout(title = "Kriging de Humedad")
 
 
+ver <- as.data.frame(r)
+ver[is.na(ver),]<- 0
+#Analizo cuantos centros ver
+wssplot <- function(data, nc=15, seed=123){
+  wss <- (nrow(data)-1)*sum(apply(data,2,var))
+  for (i in 2:nc){
+    set.seed(seed)
+    wss[i] <- sum(kmeans(data, centers=i)$withinss)}
+  plot(1:nc, wss, type="b", xlab="Number of groups",
+       ylab="Sum of squares within a group")}
+#sale óptimo 3 o 4 
+
+wssplot(ver, nc = 20)
+cluster.temp <- kmeans(ver, 3) ### kmeans, with 4 clusters
+
+clusters <- raster(r)
+
+clusters <- setValues(clusters, cluster.temp$cluster) 
+clusters
+cluster.m1 <- mask(clusters, dep_grilla)
+plot(cluster.m1)
+
+cluster.temp
+
+
+
 ## ******* TEMPERATURA ******* ##
 
 
@@ -562,6 +588,20 @@ tm_shape(r.m) +
   tm_shape(t_var) + tm_dots(size = .1) +
   tm_legend(legend.outside = TRUE)+ tm_layout(title = "Kriging de Temperatura")
 
+ver <- as.data.frame(r)
+ver[is.na(ver),]<- 0
+
+wssplot(ver, nc = 20)
+#vemos que el óptimo también está en el 3 3 aprox
+cluster.hum <- kmeans(ver, 4) ### kmeans, with 3 clusters
+
+clusters <- raster(r)
+
+clusters <- setValues(clusters, cluster.hum$cluster) 
+clusters
+cluster.m2 <- mask(clusters, dep_grilla)
+plot(cluster.m2)
+cluster.hum
 
 ####################################
 ####### Precios de campo ##########
@@ -728,8 +768,10 @@ plot(variograma, dat_fit_hum)
 
 class(departamentos)
 departamentos_sina <- departamentos %>% filter(departamen != "Antártida Argentina", departamen != "Islas del Atlántico Sur")
-class(departamentos_sina)
-dep_grilla <- as_Spatial(departamentos_sina)
+#deptos <- departamentos_sina %>% filter(provincia %notin% c("Tierra del Fuego", "Santa Cruz","Neuquén", "Río Negro","Chubut"))
+deptos <- departamentos_sina
+class(deptos)
+dep_grilla <- as_Spatial(deptos)
 class(dep_grilla)
 
 grilla <- as.data.frame(spsample(dep_grilla, "regular", n = 5000))
@@ -756,26 +798,30 @@ tm_shape(r.m) +
 
 
 
-library(raster)
-library(rgdal) 
-
 
 
 #list all raster files, im asuming they are tif files, change if needed
  #be careful if you have lots of data...!
 ver <- as.data.frame(r)
 ver[is.na(ver),]<- 0
-cluster.ICE <- kmeans(ver, 10) ### kmeans, with 4 clusters
+
+wssplot(ver,nc=20)
+cluster.precio <- kmeans(ver, 3) ### kmeans, with 4 clusters
 
 clusters <- raster(r)
 ## create an empty raster with same extent than ICE
-clusters <- setValues(clusters, cluster.ICE$cluster) 
+clusters <- setValues(clusters, cluster.precio$cluster) 
 clusters
 cluster.m <- mask(clusters, dep_grilla)
 plot(cluster.m)
 
-r.mean <- zonal(r, clusters, fun="mean")  
-r.min <- zonal(r, clusters, fun="min")
-r.max <- zonal(r, clusters, fun="max")
-r.sum <- zonal(r, clusters, fun="sum")
+par(mfrow=c(1,3))
+plot(cluster.m1, main="cluster humedad")
+plot(cluster.m2, main="cluster temperatura")
+plot(cluster.m, main="cluster precios")
+
+cluster.precio$centers
+cluster.hum$centers
+cluster.temp$centers
+
 
