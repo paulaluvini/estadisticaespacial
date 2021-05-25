@@ -803,8 +803,7 @@ tm_shape(r.m) +
 
 
 
-#list all raster files, im asuming they are tif files, change if needed
- #be careful if you have lots of data...!
+
 ver <- as.data.frame(r)
 ver[is.na(ver),]<- 0
 
@@ -827,6 +826,7 @@ cluster.precio$centers
 cluster.hum$centers
 cluster.temp$centers
 
+####Producciones de cultivo
 
 unique(estimaciones$Cultivo)
 produccion <- estimaciones %>%  filter(Campana == "2019/20") %>% 
