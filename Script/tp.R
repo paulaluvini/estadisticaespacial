@@ -577,7 +577,7 @@ describe(campos)
 
 `%notin%` <- Negate(`%in%`)
 departamentos_sin_tf <- departamentos %>% filter(departamentos$departamen %notin%  departamentos_tf$departamen)
-ggplot() + geom_sf(data = departamentos_sin_tf,fill=c("white"), color = "slategray",size = 0.10) + geom_point(data = campos, aes(x=x, y=y),colour="royalblue")+ theme_classic()
+ggplot() + geom_sf(data = departamentos_sin_tf,fill=c("white"), color = "slategray",size = 0.10) + geom_point(data = campos, aes(x=x, y=y,fill=precio,color=precio))+ theme_classic()
 par(mfrow=c(2,1))
 qqPlot(campos$precio,ylab="Precios", main = "QQPlot Precios",col.lines = "indianred", grid= FALSE)
 hist(campos$precio, xlab = "Precio minimo",col="gray20", xlim=c(100,20000), main="Histograma precio minimo",prob=TRUE)
@@ -587,7 +587,7 @@ lines(density(campos$precio), # density plot
 #transformo a geodata
 
 campo.geodata <- as.geodata(campos)
-
+plot(campo.geodata)
 campo.coord <- preciocampos %>% st_as_sf(coords =c("x", "y"), crs= 4326)
 
 
@@ -644,7 +644,7 @@ if (require(ggplot2, quietly=TRUE)) {
 
 # VARIOGRAMA 
 
-c_var <- campos
+c_var <- campos %>% filter(!is.na(x), !is.na(y))
 coordinates(c_var) <-~x+y
 variograma <-variogram( precio~1, c_var)
 
@@ -676,4 +676,82 @@ ggplot() +
   geom_sf(data = departamentos_sin_tf,fill = c('seashell'), color = "slategray",size = 0.50) + 
   geom_point(data = precio_cluster, aes(x=x, y=y, colour = cluster), size = 4 )+ 
   scale_color_gradientn(colours = wes_palette(n=5, name="Zissou1")) + theme_classic()
+
+variograma_nube <- variogram(precio~1, c_var, cloud =TRUE)
+ggplot(variograma_nube, aes(x = dist, y = gamma)) +
+  geom_point(colour = tayloRswift::swift_palettes$lover[4], size = 2) +
+  labs(title = expression("Variograma nube de Humedad"), 
+       x = "distancia", y = "semivarianza")+  
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 15, family = "Arial", face = 'bold'), 
+                        axis.text.y = element_text(size = 10, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 15, face = "bold"),
+                        axis.title = element_text(size = 15, face = "bold"))
+
+### Análisis de isotropía
+
+#Que no sea todo del mismo color me indica que habría isotropía en la data.
+v1 <- variogram( precio~1, c_var,cutoff=30, width=1.2,  map = T)
+plot(v1)
+
+par(mfrow=c(2,2))
+#Lo miro ahora en las cuatro direcciones posibles
+v.dir <-variogram(precio ~x, c_var,alpha = (0:3) * 45,width=1.2)
+v.anis <- vgm(psill = 30, "Sph", 12, anis = c(0, 0.9),nugget=4)
+plot(v.dir, v.anis, main = "Variogramas - Teóricos Humedad")
+
+v.dir$direction <- factor(v.dir$dir.hor, levels = c(0, 45, 90, 135),
+                          labels = c("E-O", "NE-SO", "N-S", "NO-SE"))
+par(mfrow=c(1,1))
+#Vemos que dentro de todo los variogramas empíricos no son tan distintos entre sí. El más distinto, tanto en comportamiento como en dirección es el de la dirección Norte-Sur.
+ggplot(v.dir, aes(x = dist, y = gamma, colour = direction)) + 
+  geom_point(size = 1.8) + 
+  labs(title = expression("Variograma direccional Precios de campo"), 
+       x = "distance", y = "semivariance", colour = "dirección") + geom_line(size=1.5)+
+  scale_color_manual(values=wes_palette("Cavalcanti1"))+
+  theme_classic()+theme(text = element_text(family = "Arial"),
+                        legend.title = element_text(size = 20),
+                        legend.text = element_text(size = 20),
+                        panel.grid.major = element_blank(),
+                        panel.grid.minor = element_blank(), axis.text.x = element_text(size = 20, family = "Arial", face = 'bold'), 
+                        axis.text.y = element_text(size = 20, family = "Arial", face = 'bold'), 
+                        axis.line = element_line(colour = "black"),plot.title = element_text(size = 25, face = "bold"),
+                        axis.title = element_text(size = 20, face = "bold"))
+
+variograma <- variogram(precio ~1, c_var, alpha = c(45,45),width=1.2,cutoff = 13)
+dat_fit_hum <- fit.variogram(variograma, fit.ranges=FALSE, fit.sills=FALSE, 
+                             vgm(psill = 30, "Lin", 15, nugget=10))#, anis = c(0, 0.9)))
+plot(variograma, dat_fit_hum)
+
+# KRIGGING
+
+class(departamentos)
+departamentos_sina <- departamentos %>% filter(departamen != "Antártida Argentina", departamen != "Islas del Atlántico Sur")
+class(departamentos_sina)
+dep_grilla <- as_Spatial(departamentos_sina)
+class(dep_grilla)
+
+grilla <- as.data.frame(spsample(dep_grilla, "regular", n = 5000))
+names(grilla) <- c("x", "y")
+coordinates(grilla) <- c("x", "y")
+plot(grilla)
+
+gridded(grilla) <- TRUE
+fullgrid(grilla) <- TRUE
+
+proj4string(grilla) <- proj4string(dep_grilla)
+proj4string(c_var) <- proj4string(dep_grilla)
+
+dar_krg <- krige(precio ~ 1,c_var,grilla, model = dat_fit_hum, nmax = 19)
+summary(dar_krg$var1.pred)
+
+r <- raster(dar_krg, layer = "var1.pred" )
+r.m <- mask(r, dep_grilla)
+
+tm_shape(r.m) +
+  tm_raster(n = 20, palette = "magma") +
+  tm_shape(c_var) + tm_dots(size = .1) +
+  tm_legend(legend.outside = TRUE)+ tm_layout(title = "Kriging de Precios")
+
 
