@@ -24,6 +24,7 @@ datoshorarios <- read.csv(file = 'Datos/datoshorarios.csv')
 humedad_historico <- read.csv(file = 'Datos/humedad_historico.csv')
 temperatura_historico <- read.csv(file = 'Datos/temperatura_historico.csv')
 preciocampos <- read_excel("Datos/precio campos.xlsx")
+campos <- read_excel("Datos/Campos.xlsx")
 
 ########################################################################################
 ################################  ANALISIS EXPLORATORIO  ###############################
@@ -561,38 +562,45 @@ tm_shape(r.m) +
   tm_shape(t_var) + tm_dots(size = .1) +
   tm_legend(legend.outside = TRUE)+ tm_layout(title = "Kriging de Temperatura")
 
-#######Precios de campo
+
+####################################
+####### Precios de campo ##########
+###################################
 
 #Ahora voy a ver la localizaci?n de los precios de tierra
-summary(preciocampos)
-colnames(preciocampos) <- c("Estacion", "Descripcion", "y", "x", "precio_min", "precio_max")
-describe(preciocampos)
-etiquetas <- preciocampos
-etiquetas<- etiquetas[order(etiquetas$Estacion),]
-etiquetas <- etiquetas[-c(2,3,5,6,7,8,9,11,12,13,14,15,16,17,19,20,21,23,24,25),]
+summary(campos)
+colnames(campos) <- c("y", "x", "precio")
+describe(campos)
+#etiquetas <- campos
+#etiquetas<- etiquetas[order(etiquetas$y),]
+#etiquetas <- etiquetas[-c(111,108,103,94,93,85,18,90, 89, 87,49,29,53,56),]
 
 `%notin%` <- Negate(`%in%`)
 departamentos_sin_tf <- departamentos %>% filter(departamentos$departamen %notin%  departamentos_tf$departamen)
-ggplot() + geom_sf(data = departamentos_sin_tf,fill = c('seashell'), color = "slategray",size = 0.10) + geom_point(data = preciocampos, aes(x=x, y=y),colour="royalblue")+ theme_classic()+geom_text(data= etiquetas, aes(x,y, label = Estacion),size = 2,vjust = -1)
-
-
+ggplot() + geom_sf(data = departamentos_sin_tf,fill=c("white"), color = "slategray",size = 0.10) + geom_point(data = campos, aes(x=x, y=y),colour="royalblue")+ theme_classic()
 par(mfrow=c(2,1))
-qqPlot(preciocampos$precio_min,ylab="Precios", main = "QQPlot Precios",col.lines = "indianred", grid= FALSE)
-hist(preciocampos$precio_min, xlab = "Precio minimo",col="gray20", xlim=c(100,20000), main="Histograma precio minimo",prob=TRUE)
-lines(density(preciocampos$precio_min), # density plot
+qqPlot(campos$precio,ylab="Precios", main = "QQPlot Precios",col.lines = "indianred", grid= FALSE)
+hist(campos$precio, xlab = "Precio minimo",col="gray20", xlim=c(100,20000), main="Histograma precio minimo",prob=TRUE)
+lines(density(campos$precio), # density plot
   lwd = 2, # thickness of line
       col = "indianred")
+#transformo a geodata
+
+campo.geodata <- as.geodata(campos)
+
+campo.coord <- preciocampos %>% st_as_sf(coords =c("x", "y"), crs= 4326)
 
 
 
 par(mfrow=c(1,1))
+
 #PUNTOS
-pares <- preciocampos %>% dplyr::select(x, y) %>% filter(!is.na(x), !is.na(y))
+pares <- campos %>% filter(!is.na(x), !is.na(y))
 class(pares)
 coordinates(pares) <- ~x+y
 
 
-campo.geodata <- campos %>% 
+
 #Ahora voy a buscar los vecinos. Este objeto tiene para cada uno con cuantos se relaciona
 # Acá habría que analizar bien que pasa con este último parámetro del vecindario que me dice
 # que los vecinos están a una distancia menor a 10,15,20,25. Esto cambia mucho los vecindarios
@@ -613,15 +621,14 @@ plot(pares_grilla, pares)
 pesos_grilla <- nb2listw(pares_grilla, style = "W", zero.policy=TRUE )
 #Vemos que estan autocorrelacionados espacialmente.
 options(scipen=20)
-moran.test(preciocampos$precio_min, pesos_grilla)
+moran.test(campos$precio, pesos_grilla)
 
 #Graficamos
-mp <- moran.plot(preciocampos$precio_min, listw=pesos_grilla, zero.policy=TRUE, 
+par(mfrow=c(1,1))
+mp <- moran.plot(campos$precio, listw=pesos_grilla, zero.policy=TRUE, 
                  pch=16, col="black",cex=.5, quiet=TRUE,
-                 xlim=c(50,80),ylim=c(60,75),
-                 labels=as.character(preciocampos$Estacion))
-moran.plot(as.vector(scale(preciocampos$precio_min)), pesos_grilla,
-           labels=as.character(preciocampos$name), xlim=c(-2, 4), ylim=c(-2,4), pch=19)
+                 xlim=c(50,80),ylim=c(60,75))
+moran.plot(as.vector(scale(campos$precio)), pesos_grilla, pch=19, xlab ="Precios", ylab="Spatially lagged precios scaled")
 if (require(ggplot2, quietly=TRUE)) {
   xname <- attr(mp, "xname")
   ggplot(mp, aes(x=x, y=wx)) + geom_point(shape=1) + 
@@ -631,21 +638,21 @@ if (require(ggplot2, quietly=TRUE)) {
     theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())+
     geom_point(data=mp[mp$is_inf,], aes(x=x, y=wx), shape=9) +
     geom_text(data=mp[mp$is_inf,], aes(x=x, y=wx, label=labels, vjust=1.5)) +
-    ggtitle("Moran I Scatter Plot" ,round(moran.test(preciocampos$precio_min, pesos_grilla)[3]$estimate[1],3))+
+    ggtitle("Moran I Scatter Plot" ,round(moran.test(campos$precio, pesos_grilla)[3]$estimate[1],3))+
     xlab("Precio minimo") + ylab(paste0("Spatially lagged ", "Precio minimo"))
 }
 
 # VARIOGRAMA 
 
-c_var <- preciocampos %>% dplyr::select(precio_min, x,y)
+c_var <- campos
 coordinates(c_var) <-~x+y
-variograma <-variogram( ~1, t_var)
+variograma <-variogram( precio~1, c_var)
 
 loadfonts(device = "win")
 windowsFonts()
 ggplot(variograma, aes(x = dist, y = gamma)) +
-  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 100000000) +
-  labs(title = expression("Variograma emp?rico de Precios"), 
+  geom_point(colour = wes_palette("Zissou1")[1]) + ylim(0, 30000000) +
+  labs(title = expression("Variograma empírico de Precios"), 
        x = "distancia", y = "semivarianza")+  
   theme_classic()+theme(text = element_text(family = "Arial"),
                         axis.title.x =   element_blank(),
@@ -655,4 +662,18 @@ ggplot(variograma, aes(x = dist, y = gamma)) +
                         axis.text.y = element_text(size = 11, family = "Arial", face = 'bold'), 
                         axis.line = element_line(colour = "black"),plot.title = element_text(size = 14, face = "bold"),
                         axis.title = element_text(size = 11, face = "bold"))
+
+set.seed(99)
+kmncluster <- kmeans(na.omit(campos$precio), centers = 3, iter.max = 500, nstart = 5, algorithm="Lloyd")
+kmncluster$cluster
+
+precio_cluster <- campos
+precio_cluster$cluster <- kmncluster$cluster
+precio_cluster
+class(precio_cluster)
+
+ggplot() + 
+  geom_sf(data = departamentos_sin_tf,fill = c('seashell'), color = "slategray",size = 0.50) + 
+  geom_point(data = precio_cluster, aes(x=x, y=y, colour = cluster), size = 4 )+ 
+  scale_color_gradientn(colours = wes_palette(n=5, name="Zissou1")) + theme_classic()
 
