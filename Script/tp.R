@@ -13,6 +13,7 @@ library(gstat)
 library(wesanderson)
 library(extrafont)
 library(LS2Wstat)
+
 loadfonts(device = "win")
 library(car)
 
@@ -25,6 +26,8 @@ humedad_historico <- read.csv(file = 'Datos/humedad_historico.csv')
 temperatura_historico <- read.csv(file = 'Datos/temperatura_historico.csv')
 preciocampos <- read_excel("Datos/precio campos.xlsx")
 campos <- read_excel("Datos/Campos.xlsx")
+estimaciones <- read.csv("/cloud/project/Datos/Estimaciones.csv", sep=";")
+
 
 ########################################################################################
 ################################  ANALISIS EXPLORATORIO  ###############################
@@ -823,5 +826,60 @@ plot(cluster.m, main="cluster precios")
 cluster.precio$centers
 cluster.hum$centers
 cluster.temp$centers
+
+
+unique(estimaciones$Cultivo)
+produccion <- estimaciones %>%  filter(Campana == "2019/20") %>% 
+  mutate(Produccion = Produccion%>% as.numeric()) %>% 
+  group_by(Cultivo) %>% 
+  summarise(prod = sum(Produccion))
+head(produccion)
+
+ggplot(aes(x = reorder(Cultivo, prod), y = prod), data = produccion) +
+  geom_bar(stat = 'identity',  col = "black", fill = wes_palette("Zissou1")[4]) +coord_flip()+
+ggtitle('Producción por cultivo campaña 2019/20') + theme_classic()+
+  theme(axis.title.x =   element_blank(),
+        axis.title.y = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.text.x = element_blank(), 
+        axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 12, face = "bold"))
+
+soja <- estimaciones %>%  filter(Cultivo == "Soja total" | Cultivo == "Soja 1era" | Cultivo== "Soja 2da"& Campana == "2019/20") %>% 
+  mutate(Produccion = Produccion%>% as.numeric()) %>% 
+  group_by(Provincia) %>% 
+  summarise(prod = sum(Produccion))
+head(soja)
+ggplot(aes(x = reorder(Provincia, prod), y = prod), data = soja) +
+  geom_bar(stat = 'identity',  col = "black", fill = wes_palette("Zissou1")[4]) +coord_flip()+
+  geom_text(aes(label = prettyNum(prod,big.mark=".",scientific=FALSE)),stat = 'identity', size =5, vjust = 0.5, hjust = 1, fontface = "bold")+
+  theme(text = element_text(family = "Raleway"))+
+  ggtitle('Producción de soja campaña 2019/20') + theme_classic()+
+  theme(text = element_text(family = "Raleway Medium"),
+        axis.title.x =   element_blank(),
+        axis.title.y = element_blank(),
+        panel.grid.major = element_blank(), axis.text.y = element_text(size = 18),
+        panel.grid.minor = element_blank(), axis.text.x = element_blank(), 
+        axis.line = element_line(colour = "black"),plot.title = element_text(size = 22, face = "bold"),
+        axis.title = element_text(size = 18, face = "bold"))
+
+maiz <- estimaciones %>%  filter(Cultivo == "Maiz"& Campana == "2019/20") %>% 
+  mutate(Produccion = Produccion%>% as.numeric()) %>% 
+  group_by(Provincia) %>% 
+  summarise(prod = sum(Produccion))
+head(maiz)
+
+ggplot(aes(x = reorder(Provincia, prod), y = prod), data = maiz) +
+  geom_bar(stat = 'identity',  col = "black", fill = wes_palette("GrandBudapest1")[1]) +coord_flip()+
+  theme(text = element_text(family = "Raleway"))+
+  ggtitle('Producción de maíz campaña 2019/20') + theme_classic()+
+  theme(text = element_text(family = "Raleway Medium"),
+        axis.title.x =   element_blank(),
+        axis.title.y = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(), axis.text.x = element_blank(), 
+        axis.line = element_line(colour = "black"),plot.title = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 12, face = "bold"))
+
 
 
