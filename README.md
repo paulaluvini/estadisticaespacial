@@ -12,6 +12,7 @@ It is the final assignment for the subject of Spatial Analysis from the MSc in D
 ├── Script/                    # Data processing and analysis scripts
 ├── .gitignore                 # Files and directories to be ignored by Git
 ├── README.md                  # This file
+├── Estadística_Espacial.pdf   # The report of the assignment with results and analysis
 ├── estadisticaespacial.Rproj   # R project file
 ```
 
